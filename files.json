@@ -1,8 +1,9 @@
 {
   "id": "Drift Mania!",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "entry": "index.html",
   "keep": ["index.html", "icon.svg"],
   "files": ["icon.svg", "card.png"],
-  "description": "Acha que é rápido? Corra em pistas e derrape o máximo possível!"
+  "description": "Acha que é rápido? Corra em pistas e derrape o máximo possível!",
+  "as_new": "Corrigimos alguns bugs e adicionamos pistas e oponentes para correr."
 }

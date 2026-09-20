@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Drift-Mania</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -13,6 +13,13 @@
             user-select: none;
             -webkit-user-select: none;
             touch-action: manipulation;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            height: 100dvh;
         }
 
         body {
@@ -20,6 +27,7 @@
             background-color: #0d0f18;
             color: #fff;
             overflow: hidden;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
         }
 
         .font-orbitron {
@@ -40,7 +48,7 @@
         .introWord {
             opacity: 0;
             transform: translateX(-120vw) skewX(-12deg);
-            font-size: clamp(3.5rem, 13vw, 8rem);
+            font-size: clamp(2.4rem, 12vw, 8rem);
             font-weight: 900;
             letter-spacing: 0.08em;
             background: linear-gradient(90deg, #06b6d4, #a855f7, #ec4899);
@@ -112,8 +120,13 @@
             from { opacity:0; transform:translateY(8px); }
             to { opacity:1; transform:translateY(0); }
         }
-        @media (max-width: 700px) {
-            .introCar { bottom: 31%; transform:scale(.8) rotate(-7deg); }
+        @keyframes countdownPop {
+            0% { transform: scale(.4); opacity: 0; }
+            40% { transform: scale(1.12); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .countdown-pop {
+            animation: countdownPop .45s cubic-bezier(.2,.8,.2,1);
         }
 
         ::-webkit-scrollbar {
@@ -127,13 +140,74 @@
             background: rgba(6, 182, 212, 0.6);
             border-radius: 3px;
         }
+
+        #hud {
+            padding-top: max(0.75rem, env(safe-area-inset-top));
+            padding-left: max(0.75rem, env(safe-area-inset-left));
+            padding-right: max(0.75rem, env(safe-area-inset-right));
+        }
+
+        #touchControls {
+            top: auto;
+            bottom: 0;
+            height: min(36vh, 280px);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        #inGameButtons {
+            bottom: calc(min(36vh, 280px) + 8px);
+            left: max(1rem, env(safe-area-inset-left));
+        }
+
+        #uiOverlay {
+            padding-top: max(1rem, env(safe-area-inset-top));
+            padding-bottom: max(1rem, env(safe-area-inset-bottom));
+        }
+
+        @media (max-width: 700px) {
+            .introCar { bottom: 31%; transform:scale(.8) rotate(-7deg); }
+            #hud {
+                flex-wrap: wrap;
+                gap: 8px;
+                align-items: flex-start;
+            }
+            #hud > div {
+                pointer-events: none;
+            }
+            #hud .glass-panel {
+                padding: 8px 10px !important;
+            }
+            #hudSpeed {
+                font-size: 1.35rem;
+            }
+            #driftScoreBox {
+                padding: 4px 14px !important;
+            }
+            #hud .text-3xl { font-size: 1.25rem; }
+            #hud .text-2xl { font-size: 1.05rem; }
+            #touchControls {
+                height: min(32vh, 230px);
+            }
+            #inGameButtons {
+                bottom: calc(min(32vh, 230px) + 6px);
+            }
+            #menuGarage, #menuPlay, #menuPlayers {
+                max-height: 88dvh;
+            }
+        }
+
+        @media (max-height: 560px) {
+            #touchControls { height: 28vh; }
+            #inGameButtons { bottom: calc(28vh + 4px); }
+            #hud { padding: 6px; }
+        }
     </style>
 </head>
 <body class="w-screen h-screen flex flex-col justify-center items-center relative overflow-hidden bg-slate-950">
 
     <!-- Intro Animation -->
     <div id="introOverlay" class="absolute inset-0 z-[60] flex items-center justify-center bg-[#05070d] overflow-hidden">
-        <div class="introContent text-center">
+        <div class="introContent text-center px-4">
             <div id="introDrift" class="introWord font-orbitron">DRIFT</div>
             <div id="introMania" class="introWord introMania font-orbitron">MANIA</div>
             <div id="introCar" class="introCar" aria-hidden="true">
@@ -154,44 +228,56 @@
     <!-- Out of Bounds / Respawn Flash Overlay -->
     <div id="respawnFlash" class="absolute inset-0 z-10 bg-red-600/30 opacity-0 pointer-events-none transition-opacity duration-200"></div>
 
+    <!-- Countdown Overlay -->
+    <div id="countdownOverlay" class="absolute inset-0 z-[25] hidden items-center justify-center pointer-events-none">
+        <div id="countdownText" class="font-orbitron font-black text-8xl text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-pink-500 to-yellow-400 drop-shadow-lg">3</div>
+    </div>
+
     <!-- Touch Control Zones (Mobile Overlay) -->
-    <div id="touchControls" class="absolute inset-0 z-10 hidden flex pointer-events-auto">
-        <div id="touchLeft" class="w-1/2 h-full flex items-end justify-start p-6 bg-cyan-500/5 active:bg-cyan-500/20 transition-colors">
-            <span class="text-cyan-400 opacity-40 text-4xl font-bold font-orbitron"><i class="fa-solid fa-chevron-left"></i> ESQ</span>
+    <div id="touchControls" class="absolute left-0 right-0 z-10 hidden flex pointer-events-auto">
+        <div id="touchLeft" class="w-1/2 h-full flex items-end justify-start p-5 bg-cyan-500/10 active:bg-cyan-500/25 transition-colors">
+            <span class="text-cyan-400 opacity-50 text-2xl sm:text-4xl font-bold font-orbitron"><i class="fa-solid fa-chevron-left"></i> ESQ</span>
         </div>
-        <div id="touchRight" class="w-1/2 h-full flex items-end justify-end p-6 bg-pink-500/5 active:bg-pink-500/20 transition-colors">
-            <span class="text-pink-400 opacity-40 text-4xl font-bold font-orbitron">DIR <i class="fa-solid fa-chevron-right"></i></span>
+        <div id="touchRight" class="w-1/2 h-full flex items-end justify-end p-5 bg-pink-500/10 active:bg-pink-500/25 transition-colors">
+            <span class="text-pink-400 opacity-50 text-2xl sm:text-4xl font-bold font-orbitron">DIR <i class="fa-solid fa-chevron-right"></i></span>
         </div>
     </div>
 
     <!-- HUD Overlay -->
     <div id="hud" class="absolute top-0 left-0 w-full p-4 z-20 pointer-events-none hidden flex justify-between items-start">
         <!-- Left HUD -->
-        <div class="glass-panel p-3 rounded-xl flex items-center gap-4">
+        <div class="glass-panel p-3 rounded-xl flex items-center gap-3 sm:gap-4">
             <div>
                 <div class="text-xs text-slate-400 uppercase font-semibold">Velocidade</div>
                 <div class="text-3xl font-orbitron font-bold text-cyan-400"><span id="hudSpeed">0</span> <span class="text-sm font-normal text-slate-300">KM/H</span></div>
             </div>
-            <div class="border-l border-slate-700 pl-4">
+            <div class="border-l border-slate-700 pl-3 sm:pl-4">
                 <div class="text-xs text-slate-400 uppercase font-semibold">Multiplicador</div>
                 <div class="text-2xl font-orbitron font-bold text-yellow-400" id="hudMult">1.0x</div>
+            </div>
+            <div class="border-l border-slate-700 pl-3 hidden sm:block">
+                <div class="text-xs text-slate-400 uppercase font-semibold">Marcha</div>
+                <div class="text-xl font-orbitron font-bold text-emerald-400" id="hudGear">1</div>
             </div>
         </div>
 
         <!-- Center HUD -->
-        <div class="flex flex-col items-center">
+        <div class="flex flex-col items-center order-3 sm:order-none w-full sm:w-auto">
             <div id="driftScoreBox" class="glass-panel px-6 py-2 rounded-full text-center border-cyan-500/40 opacity-0 transition-opacity duration-300">
                 <span class="text-xs text-cyan-300 uppercase font-bold tracking-widest block">Drift Combo</span>
                 <span id="hudDrift" class="text-3xl font-orbitron font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-pink-500 to-yellow-400">0</span>
                 <span id="hudCombo" class="text-[10px] text-yellow-300 font-orbitron block mt-1">aguardando drift</span>
             </div>
+            <div id="brakeNotice" class="mt-2 text-xs font-orbitron text-orange-300 bg-orange-950/80 px-3 py-1 rounded-full border border-orange-500/40 hidden">
+                FREIO
+            </div>
             <div id="respawnNotice" class="mt-2 text-xs font-orbitron text-red-400 bg-red-950/80 px-3 py-1 rounded-full border border-red-500/50 hidden animate-bounce">
-                ⚠️ FORA DA PISTA! RETORNANDO...
+                FORA DA PISTA! RETORNANDO...
             </div>
         </div>
 
         <!-- Right HUD -->
-        <div class="glass-panel p-3 rounded-xl flex flex-col items-end gap-1">
+        <div class="glass-panel p-3 rounded-xl flex flex-col items-end gap-1 ml-auto">
             <div class="flex items-center gap-3">
                 <span class="text-xs font-orbitron text-yellow-400 font-bold"><i class="fa-solid fa-coins"></i> <span id="hudCoins">0</span></span>
                 <span class="text-xs font-orbitron text-cyan-400 font-bold"><i class="fa-solid fa-gear"></i> <span id="hudGears">0</span></span>
@@ -203,11 +289,15 @@
             <div id="hudLapContainer" class="text-right text-xs text-slate-300 font-orbitron">
                 Volta: <span id="hudLap" class="text-cyan-400 font-bold">1/3</span>
             </div>
+            <div id="hudAiContainer" class="text-right text-[10px] sm:text-xs text-purple-300 font-orbitron hidden max-w-[160px]">
+                <div id="hudAiLap">IA —</div>
+                <div id="hudCcLabel" class="text-amber-300 hidden"></div>
+            </div>
         </div>
     </div>
 
     <!-- Pause Button -->
-    <div id="inGameButtons" class="absolute bottom-4 left-4 z-20 hidden">
+    <div id="inGameButtons" class="absolute z-20 hidden">
         <button id="btnPause" class="glass-panel hover:bg-slate-800 text-white p-3 rounded-full w-12 h-12 flex items-center justify-center transition active:scale-95 border border-slate-700">
             <i class="fa-solid fa-pause"></i>
         </button>
@@ -219,13 +309,12 @@
         <!-- 1. MAIN MENU -->
         <div id="menuMain" class="w-full max-w-md flex flex-col items-center gap-6 py-6">
             <div class="text-center">
-                <h1 class="text-5xl font-black font-orbitron tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 neon-text-cyan">
+                <h1 class="text-4xl sm:text-5xl font-black font-orbitron tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 neon-text-cyan">
                     DRIFT-MANIA
                 </h1>
                 <p class="text-slate-400 text-sm tracking-widest uppercase mt-1">Arcade Drift & Racing</p>
             </div>
 
-            <!-- Currency Panel -->
             <div class="glass-panel w-full p-4 rounded-2xl flex items-center justify-around border-slate-700">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-400">
@@ -290,42 +379,40 @@
                 <button id="btnBackToMain" class="text-slate-400 hover:text-white flex items-center gap-2 font-orbitron text-sm">
                     <i class="fa-solid fa-arrow-left"></i> VOLTAR
                 </button>
-                <h2 class="text-2xl font-orbitron font-bold text-cyan-400">CONFIGURAR CORRIDA</h2>
+                <h2 class="text-xl sm:text-2xl font-orbitron font-bold text-cyan-400">CONFIGURAR CORRIDA</h2>
                 <div class="w-16"></div>
             </div>
 
-            <!-- Mode Selection -->
             <div>
-                <label class="block text-xs uppercase font-orbitron text-slate-400 mb-2">Modo de Jogo</label>
+                <label class="block text-xs uppercase font-orbitron text-slate-400 mb-2">1. Escolha o modo</label>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <button id="modeDrift" class="p-4 rounded-xl glass-panel border-2 border-cyan-500 bg-cyan-950/30 flex flex-col items-center transition">
-                        <i class="fa-solid fa-fire text-2xl text-cyan-400 mb-1"></i>
-                        <span class="font-orbitron font-bold text-cyan-300">MODO DRIFT</span>
-                        <span class="text-xs text-slate-400 text-center mt-1">Pontue derrapando antes do tempo esgotar</span>
-                    </button>
-                    <button id="modeTime" class="p-4 rounded-xl glass-panel border-2 border-slate-700 hover:border-slate-500 flex flex-col items-center transition opacity-60">
+                    <button id="modeTime" class="p-4 rounded-xl glass-panel border-2 border-pink-500 bg-pink-950/30 flex flex-col items-center transition">
                         <i class="fa-solid fa-stopwatch text-2xl text-pink-400 mb-1"></i>
-                        <span class="font-orbitron font-bold text-slate-300">MODO TEMPO</span>
-                        <span class="text-xs text-slate-400 text-center mt-1">Complete as voltas no menor tempo</span>
+                        <span class="font-orbitron font-bold text-pink-300">TEMPO</span>
+                        <span class="text-xs text-slate-400 text-center mt-1">Padrão: complete as voltas contra 3 IAs</span>
                     </button>
-                    <button id="modeGhost" class="p-4 rounded-xl glass-panel border-2 border-slate-700 hover:border-slate-500 flex flex-col items-center transition opacity-60">
-                        <i class="fa-solid fa-ghost text-2xl text-purple-400 mb-1"></i>
-                        <span class="font-orbitron font-bold text-slate-300">FANTASMA</span>
-                        <span class="text-xs text-slate-400 text-center mt-1">Corra contra seu melhor fantasma</span>
+                    <button id="modeDrift" class="p-4 rounded-xl glass-panel border-2 border-slate-700 hover:border-slate-500 flex flex-col items-center transition opacity-60">
+                        <i class="fa-solid fa-fire text-2xl text-cyan-400 mb-1"></i>
+                        <span class="font-orbitron font-bold text-slate-300">DRIFT</span>
+                        <span class="text-xs text-slate-400 text-center mt-1">Pontue no drift contra 3 IAs especializadas</span>
+                    </button>
+                    <button id="modeDuel" class="p-4 rounded-xl glass-panel border-2 border-slate-700 hover:border-slate-500 flex flex-col items-center transition opacity-60">
+                        <i class="fa-solid fa-user-group text-2xl text-amber-400 mb-1"></i>
+                        <span class="font-orbitron font-bold text-slate-300">1v1</span>
+                        <span id="duelCcHint" class="text-xs text-slate-400 text-center mt-1">IA começa com +50cc e se adapta</span>
                     </button>
                 </div>
             </div>
 
-            <!-- Track Selection -->
-            <div>
-                <label class="block text-xs uppercase font-orbitron text-slate-400 mb-2">Selecione a Pista (Pistas Expandidas)</label>
-                <div class="grid grid-cols-3 gap-2 mb-3">
+            <div id="trackSelectPanel">
+                <label class="block text-xs uppercase font-orbitron text-slate-400 mb-2">2. Selecione a pista</label>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
                     <button id="trackFilterAll" class="py-1 px-3 text-xs font-orbitron rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500">Todas</button>
-                    <button id="trackFilterNormal" class="py-1 px-3 text-xs font-orbitron rounded-lg bg-slate-800 text-slate-400 border border-slate-700">Asfalto (3)</button>
-                    <button id="trackFilterOffroad" class="py-1 px-3 text-xs font-orbitron rounded-lg bg-slate-800 text-slate-400 border border-slate-700">Off-Road (3)</button>
+                    <button id="trackFilterNormal" class="py-1 px-3 text-xs font-orbitron rounded-lg bg-slate-800 text-slate-400 border border-slate-700">Asfalto</button>
+                    <button id="trackFilterOffroad" class="py-1 px-3 text-xs font-orbitron rounded-lg bg-slate-800 text-slate-400 border border-slate-700">Off-Road</button>
+                    <button id="trackFilterMixed" class="py-1 px-3 text-xs font-orbitron rounded-lg bg-slate-800 text-slate-400 border border-slate-700">Misto</button>
                 </div>
-                <div id="trackGrid" class="grid grid-cols-1 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto p-1">
-                    <!-- Dynamically populated -->
+                <div id="trackGrid" class="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-64 overflow-y-auto p-1">
                 </div>
             </div>
 
@@ -362,51 +449,45 @@
             </div>
         </div>
 
-        <!-- 3. GARAGE & SHOP MENU -->
+        <!-- GARAGE & SHOP MENU -->
         <div id="menuGarage" class="w-full max-w-4xl flex flex-col gap-6 hidden py-6">
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between gap-2">
                 <button id="btnBackGarage" class="text-slate-400 hover:text-white flex items-center gap-2 font-orbitron text-sm">
                     <i class="fa-solid fa-arrow-left"></i> VOLTAR
                 </button>
-                <h2 class="text-2xl font-orbitron font-bold text-pink-400"><i class="fa-solid fa-warehouse mr-2"></i>GARAGEM E LOJA</h2>
-                <div class="flex items-center gap-4 glass-panel px-4 py-1.5 rounded-full">
+                <h2 class="text-lg sm:text-2xl font-orbitron font-bold text-pink-400"><i class="fa-solid fa-warehouse mr-2"></i>GARAGEM E LOJA</h2>
+                <div class="flex items-center gap-3 glass-panel px-3 py-1.5 rounded-full">
                     <span class="font-orbitron font-bold text-yellow-400 text-sm"><i class="fa-solid fa-coins mr-1"></i><span id="garageCoins">0</span></span>
-                    <span class="font-orbitron font-bold text-cyan-400 text-sm"><i class="fa-solid fa-gear mr-1"></i><span id="garageGears">0</span></span>
+                    <span class="font-orbitron font-bold text-cyan-400 text-sm"><i class="fa-solid fa-gear"></i> <span id="garageGears">0</span></span>
                 </div>
             </div>
 
-            <!-- Tab Switching: Car Collection vs Gear Shop -->
-            <div class="flex border-b border-slate-800 gap-4">
-                <button id="tabCars" class="pb-2 font-orbitron font-bold text-cyan-400 border-b-2 border-cyan-400">VEÍCULOS & MELHORIAS</button>
-                <button id="tabParts" class="pb-2 font-orbitron font-bold text-slate-500 hover:text-slate-300">PEÇAS & PREVIEW</button>
-                <button id="tabShop" class="pb-2 font-orbitron font-bold text-slate-500 hover:text-slate-300">LOJA DE ENGRENAGENS</button>
+            <div class="flex border-b border-slate-800 gap-3 overflow-x-auto">
+                <button id="tabCars" class="pb-2 font-orbitron font-bold text-cyan-400 border-b-2 border-cyan-400 whitespace-nowrap">VEÍCULOS</button>
+                <button id="tabTune" class="pb-2 font-orbitron font-bold text-slate-500 hover:text-slate-300 whitespace-nowrap">TUNAGEM</button>
+                <button id="tabParts" class="pb-2 font-orbitron font-bold text-slate-500 hover:text-slate-300 whitespace-nowrap">PEÇAS</button>
+                <button id="tabShop" class="pb-2 font-orbitron font-bold text-slate-500 hover:text-slate-300 whitespace-nowrap">LOJA</button>
             </div>
 
             <!-- TAB 1: VEHICLES & UPGRADES -->
             <div id="panelCars" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                <!-- Car Selector List -->
                 <div class="lg:col-span-6 flex flex-col gap-3">
                     <span class="text-xs font-orbitron text-slate-400 uppercase">Coleção de Veículos</span>
-                    <div id="carListGrid" class="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto p-1">
-                        <!-- Dynamically populated -->
-                    </div>
+                    <div id="carListGrid" class="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto p-1"></div>
                 </div>
 
-                <!-- Customization & Upgrades (Right Panel) -->
                 <div class="lg:col-span-6 glass-panel p-5 rounded-2xl flex flex-col gap-4 border-pink-500/30">
                     <div id="selectedCarHeader" class="text-center border-b border-slate-800 pb-2">
                         <h3 id="selectedCarName" class="text-2xl font-orbitron font-bold text-cyan-400">SPECTRE GT</h3>
                         <p id="selectedCarStatus" class="text-xs font-orbitron text-green-400">ADQUIRIDO</p>
                     </div>
 
-                    <!-- Upgrade Choice & Stats -->
                     <div class="space-y-3">
                         <div class="flex items-center justify-between">
                             <span class="text-xs font-orbitron text-slate-300">Atributo Escolhido para Melhoria:</span>
                             <span id="carUpgradeFocus" class="text-xs font-orbitron font-bold text-yellow-400">Nenhum</span>
                         </div>
 
-                        <!-- Stats with Level Badges -->
                         <div class="space-y-2">
                             <div>
                                 <div class="flex justify-between text-xs font-orbitron text-slate-300 mb-1">
@@ -437,7 +518,6 @@
                             </div>
                         </div>
 
-                        <!-- Upgrade Section with Gears -->
                         <div class="glass-panel p-3 rounded-xl border-cyan-500/30 bg-cyan-950/20">
                             <div class="flex justify-between items-center mb-2">
                                 <span class="text-xs font-orbitron font-bold text-cyan-300">MELHORAR ATRIBUTO (Até 3x)</span>
@@ -456,17 +536,49 @@
                         </div>
                     </div>
 
-                    <!-- Customization -->
-                    <div class="border-t border-slate-800 pt-2 flex justify-between items-center">
+                    <div class="border-t border-slate-800 pt-2 flex justify-between items-center flex-wrap gap-2">
                         <span class="text-xs font-orbitron text-slate-400">Pintura:</span>
                         <input type="color" id="customBodyColor" class="w-7 h-7 rounded border-0 bg-transparent cursor-pointer">
-                        <span class="text-xs font-orbitron text-slate-400 ml-4">Fumaça:</span>
+                        <span class="text-xs font-orbitron text-slate-400">Fumaça:</span>
                         <input type="color" id="customSmokeColor" class="w-7 h-7 rounded border-0 bg-transparent cursor-pointer">
                     </div>
 
                     <button id="btnBuyEquip" class="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-orbitron font-bold text-base transition mt-auto">
                         EQUIPAR
                     </button>
+                </div>
+            </div>
+
+            <!-- TAB TUNAGEM -->
+            <div id="panelTune" class="hidden glass-panel p-5 rounded-2xl flex flex-col gap-6 border-cyan-500/30">
+                <div>
+                    <h3 class="text-xl font-orbitron font-bold text-cyan-400">TUNAGEM DO CARRO</h3>
+                    <p class="text-xs text-slate-400 mt-1">Ajuste a direção e o câmbio automático. Essas opções saíram das configurações e agora ficam na garagem.</p>
+                </div>
+
+                <div>
+                    <label class="flex justify-between text-xs font-orbitron text-slate-300 mb-2">
+                        <span>Direção</span>
+                        <span id="steerTuneLabel">100%</span>
+                    </label>
+                    <input type="range" id="sliderSteerTune" min="75" max="125" value="100" class="w-full accent-cyan-400">
+                    <p class="text-[10px] text-slate-500 mt-1 font-orbitron">75% mais estável • 125% mais rápido para iniciar drift</p>
+                </div>
+
+                <div>
+                    <span class="block text-xs font-orbitron text-slate-300 mb-2">Marchas (câmbio automático)</span>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button id="gearSlow" class="p-3 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 font-orbitron text-xs">
+                            LENTO<br><span class="text-[10px] text-slate-500">troca demorada, pouca perda</span>
+                        </button>
+                        <button id="gearMedium" class="p-3 rounded-xl border border-cyan-500 bg-cyan-950/40 text-cyan-200 font-orbitron text-xs">
+                            MÉDIO<br><span class="text-[10px] text-slate-400">equilibrado</span>
+                        </button>
+                        <button id="gearFast" class="p-3 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 font-orbitron text-xs">
+                            RÁPIDO<br><span class="text-[10px] text-slate-500">troca veloz, maior perda</span>
+                        </button>
+                    </div>
+                    <p id="gearTuneHint" class="text-[10px] text-cyan-300 mt-3 font-orbitron">Câmbio médio: troca em 0.28s com perda moderada de velocidade.</p>
                 </div>
             </div>
 
@@ -502,7 +614,6 @@
                             <i class="fa-solid fa-coins mr-1"></i> 500 Moedas
                         </button>
                     </div>
-
                     <div class="p-4 rounded-xl border border-cyan-500/50 glass-panel bg-cyan-950/20 flex flex-col items-center text-center gap-3">
                         <i class="fa-solid fa-gears text-4xl text-cyan-300"></i>
                         <span class="font-orbitron font-bold text-lg text-white">15 ENGRENAGENS</span>
@@ -510,7 +621,6 @@
                             <i class="fa-solid fa-coins mr-1"></i> 1.200 Moedas
                         </button>
                     </div>
-
                     <div class="p-4 rounded-xl border border-pink-500/50 glass-panel bg-pink-950/20 flex flex-col items-center text-center gap-3">
                         <i class="fa-solid fa-toolbox text-4xl text-pink-400"></i>
                         <span class="font-orbitron font-bold text-lg text-white">40 ENGRENAGENS</span>
@@ -522,7 +632,7 @@
             </div>
         </div>
 
-        <!-- 4. SETTINGS MENU -->
+        <!-- SETTINGS MENU -->
         <div id="menuSettings" class="w-full max-w-md flex flex-col gap-6 hidden py-6">
             <div class="flex items-center justify-between">
                 <button id="btnBackSettings" class="text-slate-400 hover:text-white flex items-center gap-2 font-orbitron text-sm">
@@ -541,13 +651,11 @@
                     <input type="range" id="sliderSfx" min="0" max="100" value="80" class="w-full accent-cyan-400">
                 </div>
 
-                <div>
-                    <label class="flex justify-between text-xs font-orbitron text-slate-300 mb-2">
-                        <span>Sensibilidade da Direção</span>
-                        <span id="sensLabel">100%</span>
-                    </label>
-                    <input type="range" id="sliderSens" min="50" max="150" value="100" class="w-full accent-cyan-400">
-                </div>
+                <label class="flex items-center justify-between gap-3 text-xs font-orbitron text-slate-300">
+                    <span>Girar câmera junto com a direção</span>
+                    <input type="checkbox" id="chkCameraRotate" class="w-5 h-5 accent-cyan-400">
+                </label>
+                <p class="text-[10px] text-slate-500 -mt-3">Quando ligado, a pista gira com o carro. Quando desligado, o mundo fica fixo.</p>
 
                 <div class="border-t border-slate-800 pt-4">
                     <button id="btnResetProgress" class="w-full py-2.5 rounded-lg bg-red-950/60 hover:bg-red-900 border border-red-500/50 text-red-300 font-orbitron text-xs font-bold transition">
@@ -557,7 +665,7 @@
             </div>
         </div>
 
-        <!-- 5. PAUSE MENU -->
+        <!-- PAUSE MENU -->
         <div id="menuPause" class="w-full max-w-sm flex flex-col gap-4 hidden py-6 text-center">
             <h2 class="text-3xl font-orbitron font-bold text-cyan-400 mb-2">JOGO PAUSADO</h2>
             <button id="btnResume" class="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-orbitron font-bold text-lg transition">CONTINUAR</button>
@@ -565,9 +673,9 @@
             <button id="btnQuitToMenu" class="w-full py-3 rounded-xl bg-red-950/80 hover:bg-red-900 text-red-300 font-orbitron font-bold text-lg transition border border-red-800">SAIR PARA O MENU</button>
         </div>
 
-        <!-- 6. RACE RESULTS OVERLAY -->
+        <!-- RACE RESULTS OVERLAY -->
         <div id="menuResults" class="w-full max-w-md flex flex-col gap-5 hidden py-6 text-center">
-            <h2 id="resultTitle" class="text-4xl font-orbitron font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-500">CORRIDA CONCLUÍDA!</h2>
+            <h2 id="resultTitle" class="text-3xl sm:text-4xl font-orbitron font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-500">CORRIDA CONCLUÍDA!</h2>
 
             <div class="glass-panel p-5 rounded-2xl flex flex-col gap-3 border-yellow-500/40">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-2">
@@ -577,6 +685,10 @@
                 <div class="flex justify-between items-center border-b border-slate-800 pb-2">
                     <span class="text-slate-400 text-sm">Tempo Total</span>
                     <span id="resTime" class="font-orbitron font-bold text-xl text-pink-400">00:00.0</span>
+                </div>
+                <div id="resVersusRow" class="hidden flex justify-between items-center border-b border-slate-800 pb-2">
+                    <span class="text-slate-400 text-sm">Resultado</span>
+                    <span id="resVersus" class="font-orbitron font-bold text-lg text-purple-300">—</span>
                 </div>
                 <div class="flex justify-between items-center pt-1">
                     <span class="text-slate-300 font-bold text-sm">Recompensa</span>
@@ -590,7 +702,6 @@
     </div>
 
     <script>
-        // --- SOUND SYSTEM (Web Audio API Synthesizer) ---
         class SoundSystem {
             constructor() {
                 this.ctx = null;
@@ -616,23 +727,17 @@
                 try {
                     this.engineOsc = this.ctx.createOscillator();
                     this.engineGain = this.ctx.createGain();
-                    
                     this.engineOsc.type = 'sawtooth';
                     this.engineOsc.frequency.setValueAtTime(45, this.ctx.currentTime);
-                    
                     this.engineGain.gain.setValueAtTime(0.05 * this.volume, this.ctx.currentTime);
-                    
                     this.engineOsc.connect(this.engineGain);
                     this.engineGain.connect(this.ctx.destination);
                     this.engineOsc.start();
 
-                    // Drift Noise
                     const bufferSize = this.ctx.sampleRate * 2;
                     const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
                     const output = noiseBuffer.getChannelData(0);
-                    for (let i = 0; i < bufferSize; i++) {
-                        output[i] = Math.random() * 2 - 1;
-                    }
+                    for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
 
                     this.driftWhiteNoise = this.ctx.createBufferSource();
                     this.driftWhiteNoise.buffer = noiseBuffer;
@@ -645,12 +750,10 @@
 
                     this.driftGain = this.ctx.createGain();
                     this.driftGain.gain.setValueAtTime(0, this.ctx.currentTime);
-
                     this.driftWhiteNoise.connect(filter);
                     filter.connect(this.driftGain);
                     this.driftGain.connect(this.ctx.destination);
                     this.driftWhiteNoise.start();
-
                     this.isEnginePlaying = true;
                 } catch(e) { console.error(e); }
             }
@@ -669,7 +772,6 @@
                 if (!this.ctx || !this.isEnginePlaying) return;
                 const freq = 45 + (speedRatio * 180);
                 this.engineOsc.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.05);
-
                 const targetDriftVol = isDrifting ? 0.18 * this.volume : 0;
                 this.driftGain.gain.setTargetAtTime(targetDriftVol, this.ctx.currentTime, 0.05);
             }
@@ -717,100 +819,33 @@
                 osc.start();
                 osc.stop(this.ctx.currentTime + 0.05);
             }
+
+            playBeep(freq = 520) {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(0.12 * this.volume, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.18);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.18);
+            }
         }
 
         const audio = new SoundSystem();
 
-        // --- GAME DATA & CONFIGURATION ---
         const CAR_DATABASE = [
-            {
-                id: 'starter',
-                name: 'SPECTRE GT',
-                price: 0,
-                accel: 0.28,
-                maxSpeed: 8.5,
-                driftFactor: 0.92,
-                multiplier: 1.0,
-                color: '#06b6d4',
-                smokeColor: '#ffffff'
-            },
-            {
-                id: 'drifter_pro',
-                name: 'NIGHT HAWK',
-                price: 1500,
-                accel: 0.35,
-                maxSpeed: 9.5,
-                driftFactor: 0.96,
-                multiplier: 1.2,
-                color: '#ec4899',
-                smokeColor: '#f472b6'
-            },
-            {
-                id: 'offroad_king',
-                name: 'MUD VIPER',
-                price: 3000,
-                accel: 0.40,
-                maxSpeed: 10.2,
-                driftFactor: 0.90,
-                multiplier: 1.4,
-                color: '#eab308',
-                smokeColor: '#fef08a'
-            },
-            {
-                id: 'phantom',
-                name: 'PHANTOM R',
-                price: 6000,
-                accel: 0.48,
-                maxSpeed: 11.5,
-                driftFactor: 0.98,
-                multiplier: 1.6,
-                color: '#a855f7',
-                smokeColor: '#c084fc'
-            },
-            {
-                id: 'hyper_drift',
-                name: 'APEX HYPER',
-                price: 12000,
-                accel: 0.58,
-                maxSpeed: 13.0,
-                driftFactor: 0.99,
-                multiplier: 2.0,
-                color: '#22c55e',
-                smokeColor: '#86efac'
-            },
-            {
-                id: 'street_legend',
-                name: 'STREET LEGEND',
-                price: 20000,
-                accel: 0.63,
-                maxSpeed: 13.8,
-                driftFactor: 1.02,
-                multiplier: 2.2,
-                color: '#f97316',
-                smokeColor: '#fed7aa'
-            },
-            {
-                id: 'torque_beast',
-                name: 'TORQUE BEAST',
-                price: 30000,
-                accel: 0.72,
-                maxSpeed: 14.4,
-                driftFactor: 0.97,
-                multiplier: 2.4,
-                color: '#ef4444',
-                smokeColor: '#fecaca'
-            },
-            {
-                id: 'neon_zenith',
-                name: 'NEON ZENITH',
-                price: 50000,
-                accel: 0.78,
-                maxSpeed: 15.5,
-                driftFactor: 1.05,
-                multiplier: 2.7,
-                color: '#38bdf8',
-                smokeColor: '#bae6fd'
-            }
+            { id: 'starter', name: 'SPECTRE GT', price: 0, accel: 0.28, maxSpeed: 8.5, driftFactor: 0.92, multiplier: 1.0, color: '#06b6d4', smokeColor: '#ffffff' },
+            { id: 'drifter_pro', name: 'NIGHT HAWK', price: 1500, accel: 0.35, maxSpeed: 9.5, driftFactor: 0.96, multiplier: 1.2, color: '#ec4899', smokeColor: '#f472b6' },
+            { id: 'offroad_king', name: 'MUD VIPER', price: 3000, accel: 0.40, maxSpeed: 10.2, driftFactor: 0.90, multiplier: 1.4, color: '#eab308', smokeColor: '#fef08a' },
+            { id: 'phantom', name: 'PHANTOM R', price: 6000, accel: 0.48, maxSpeed: 11.5, driftFactor: 0.98, multiplier: 1.6, color: '#a855f7', smokeColor: '#c084fc' },
+            { id: 'hyper_drift', name: 'APEX HYPER', price: 12000, accel: 0.58, maxSpeed: 13.0, driftFactor: 0.99, multiplier: 2.0, color: '#22c55e', smokeColor: '#86efac' },
+            { id: 'street_legend', name: 'STREET LEGEND', price: 20000, accel: 0.63, maxSpeed: 13.8, driftFactor: 1.02, multiplier: 2.2, color: '#f97316', smokeColor: '#fed7aa' },
+            { id: 'torque_beast', name: 'TORQUE BEAST', price: 30000, accel: 0.72, maxSpeed: 14.4, driftFactor: 0.97, multiplier: 2.4, color: '#ef4444', smokeColor: '#fecaca' },
+            { id: 'neon_zenith', name: 'NEON ZENITH', price: 50000, accel: 0.78, maxSpeed: 15.5, driftFactor: 1.05, multiplier: 2.7, color: '#38bdf8', smokeColor: '#bae6fd' }
         ];
 
         const PARTS_DATABASE = [
@@ -824,23 +859,36 @@
             { id: 'gold_rims', name: 'Rodas Douradas', type: 'wheels', price: 1200, accelBonus: 0.03, speedBonus: 0.25, driftBonus: 0.05, description: 'Estilo premium com bônus equilibrado.' }
         ];
 
-        // 9 EXPANDED & LARGER TRACKS (Scale ~ 2.5x larger with wide drift turns)
         const TRACK_DATABASE = [
-            // Normal (Asphalt)
-            { id: 'norm_1', name: 'Grand City Alpha', type: 'normal', bg: '#1e293b', asphalt: '#334155', border: '#06b6d4', laps: 3, roadWidth: 160, points: [[0,-1000], [1200,-1000], [1600,-200], [1400,1000], [-800,1000], [-1400,200], [-1000,-800]] },
-            { id: 'norm_2', name: 'Ringue Neon Metropolis', type: 'normal', bg: '#0f172a', asphalt: '#1e293b', border: '#ec4899', laps: 3, roadWidth: 160, points: [[0,-1200], [1000,-600], [400,0], [1200,800], [0,1400], [-1200,800], [-300,0], [-900,-600]] },
-            { id: 'norm_3', name: 'Autódromo Speedline Pro', type: 'normal', bg: '#18181b', asphalt: '#27272a', border: '#eab308', laps: 3, roadWidth: 170, points: [[-1200,-1000], [1200,-1000], [1800,0], [1200,1000], [-1200,1000], [-600,0]] },
-            // Off-Road
-            { id: 'off_1', name: 'Arena de Canyons', type: 'offroad', bg: '#451a03', asphalt: '#78350f', border: '#d97706', laps: 3, roadWidth: 170, points: [[0,-1100], [1000,-600], [1300,600], [300,1200], [-1000,900], [-1300,-300]] },
-            { id: 'off_2', name: 'Deserto Dunas Mega', type: 'offroad', bg: '#7c2d12', asphalt: '#9a3412', border: '#f97316', laps: 3, roadWidth: 170, points: [[-900,-1200], [900,-1200], [300,-300], [1400,600], [0,1400], [-1400,600], [-300,-300]] },
-            { id: 'off_3', name: 'Trilha do Vale Verde', type: 'offroad', bg: '#14532d', asphalt: '#166534', border: '#22c55e', laps: 3, roadWidth: 170, points: [[0,-1300], [1200,-800], [500,0], [1300,800], [-300,1300], [-1200,300]] },
-            // Mixed
-            { id: 'mix_1', name: 'Cross-Track Misto A', type: 'mixed', bg: '#1e293b', asphalt: '#334155', offAsphalt: '#78350f', border: '#06b6d4', laps: 3, roadWidth: 165, points: [[0,-1100], [1100,-800], [1300,300], [400,1100], [-1000,1000], [-1300,-300]] },
-            { id: 'mix_2', name: 'Rally Cidade & Terra', type: 'mixed', bg: '#0f172a', asphalt: '#1e293b', offAsphalt: '#9a3412', border: '#ec4899', laps: 3, roadWidth: 165, points: [[-1100,-900], [600,-1200], [1400,-300], [900,900], [-600,1200], [-1300,0]] },
-            { id: 'mix_3', name: 'Mega Circuito Híbrido', type: 'mixed', bg: '#18181b', asphalt: '#27272a', offAsphalt: '#166534', border: '#eab308', laps: 3, roadWidth: 170, points: [[0,-1400], [1400,-800], [800,300], [1100,1300], [-600,1100], [-1400,-300]] }
+            { id: 'norm_1', name: 'Grand City Alpha', type: 'normal', bg: '#1e293b', asphalt: '#334155', border: '#06b6d4', laps: 3, roadWidth: 240, points: [[0,-2400],[900,-2500],[2100,-2200],[3100,-1400],[3400,-200],[3000,1200],[1900,2300],[200,2600],[-1600,2300],[-2900,1300],[-3200,100],[-2500,-1300],[-1100,-2200]] },
+            { id: 'norm_2', name: 'Ringue Neon Metropolis', type: 'normal', bg: '#0f172a', asphalt: '#1e293b', border: '#ec4899', laps: 3, roadWidth: 240, points: [[0,-2700],[1400,-2300],[2500,-1200],[2200,200],[2800,1600],[1200,2700],[-400,2900],[-2200,1900],[-2800,200],[-1900,-1500],[-700,-2400]] },
+            { id: 'norm_3', name: 'Autódromo Speedline Pro', type: 'normal', bg: '#18181b', asphalt: '#27272a', border: '#eab308', laps: 3, roadWidth: 250, points: [[-2600,-2200],[400,-2500],[2600,-2200],[3400,-600],[3000,1400],[1200,2500],[-1400,2500],[-3200,900],[-2800,-800]] },
+            { id: 'norm_4', name: 'Oval Costa Azul', type: 'normal', bg: '#082f49', asphalt: '#164e63', border: '#38bdf8', laps: 3, roadWidth: 260, points: [[-2200,-1600],[0,-2100],[2200,-1600],[2800,0],[2200,1600],[0,2100],[-2200,1600],[-2800,0]] },
+            { id: 'norm_5', name: 'Infinito Neon', type: 'normal', bg: '#1e1b4b', asphalt: '#312e81', border: '#c084fc', laps: 3, roadWidth: 230, points: [[-2400,-400],[-1800,-1800],[0,-2200],[1800,-1800],[2400,-400],[800,400],[2400,1400],[0,2400],[-2400,1400],[-800,400]] },
+            { id: 'off_1', name: 'Arena de Canyons', type: 'offroad', bg: '#451a03', asphalt: '#78350f', border: '#d97706', laps: 3, roadWidth: 250, points: [[0,-2500],[1600,-2100],[2800,-800],[2600,1100],[900,2500],[-1300,2400],[-2800,900],[-2600,-900],[-1200,-2200]] },
+            { id: 'off_2', name: 'Deserto Dunas Mega', type: 'offroad', bg: '#7c2d12', asphalt: '#9a3412', border: '#f97316', laps: 3, roadWidth: 250, points: [[-2000,-2600],[800,-2700],[2600,-1800],[2000,-200],[3200,1400],[800,2800],[-1800,2500],[-3200,700],[-2200,-900]] },
+            { id: 'off_3', name: 'Trilha do Vale Verde', type: 'offroad', bg: '#14532d', asphalt: '#166534', border: '#22c55e', laps: 3, roadWidth: 250, points: [[0,-2800],[1900,-2300],[2800,-700],[1600,700],[2700,2000],[200,2900],[-2000,2100],[-2900,200],[-1800,-1600]] },
+            { id: 'off_4', name: 'Platô Rochoso', type: 'offroad', bg: '#44403c', asphalt: '#78716c', border: '#fbbf24', laps: 3, roadWidth: 255, points: [[-2600,-1800],[-400,-2600],[1800,-2200],[3000,-400],[2400,1600],[400,2600],[-2000,2000],[-3100,200],[-1800,-600]] },
+            { id: 'off_5', name: 'Cratera Seca', type: 'offroad', bg: '#3f2e1a', asphalt: '#92400e', border: '#fdba74', laps: 3, roadWidth: 250, points: [[0,-2300],[1500,-1900],[2400,-400],[1900,1400],[400,2400],[-1600,1900],[-2500,200],[-1700,-1400]] },
+            { id: 'mix_1', name: 'Cross-Track Misto A', type: 'mixed', bg: '#1e293b', asphalt: '#334155', offAsphalt: '#78350f', border: '#06b6d4', laps: 3, roadWidth: 240, points: [[0,-2500],[1700,-2200],[2900,-900],[2700,900],[1100,2500],[-1500,2400],[-3000,600],[-2500,-1100],[-900,-2300]] },
+            { id: 'mix_2', name: 'Rally Cidade & Terra', type: 'mixed', bg: '#0f172a', asphalt: '#1e293b', offAsphalt: '#9a3412', border: '#ec4899', laps: 3, roadWidth: 240, points: [[-2400,-2000],[600,-2700],[2800,-1600],[3200,200],[2000,2100],[-400,2800],[-2500,1600],[-3200,-200],[-1800,-1400]] },
+            { id: 'mix_3', name: 'Mega Circuito Híbrido', type: 'mixed', bg: '#18181b', asphalt: '#27272a', offAsphalt: '#166534', border: '#eab308', laps: 3, roadWidth: 250, points: [[0,-3000],[2000,-2400],[3300,-900],[2500,900],[2800,2400],[-200,2800],[-2300,2000],[-3300,200],[-2400,-1500]] },
+            { id: 'mix_4', name: 'Porto Industrial', type: 'mixed', bg: '#111827', asphalt: '#1f2937', offAsphalt: '#78350f', border: '#22d3ee', laps: 3, roadWidth: 245, points: [[-2800,-1200],[-800,-2400],[1600,-2600],[3000,-1000],[2600,800],[800,2400],[-1600,2200],[-3000,400]] },
+            { id: 'mix_5', name: 'Serpente Noturna', type: 'mixed', bg: '#020617', asphalt: '#1e293b', offAsphalt: '#14532d', border: '#a3e635', laps: 3, roadWidth: 235, points: [[-3000,-200],[ -2200,-2200],[200,-2600],[2600,-1600],[3000,400],[1400,1600],[2400,2600],[-200,2800],[-2600,1400],[-1600,200]] }
         ];
 
-        // --- GAME STATE & LOCALSTORAGE ---
+        const GEAR_TUNING = {
+            slow:   { label: 'Lento',   shiftTime: 0.58, loss: 0.07, upshiftRatio: 0.90, hint: 'Câmbio lento: troca em 0.58s com perda média de velocidade.' },
+            medium: { label: 'Médio',   shiftTime: 0.30, loss: 0.12, upshiftRatio: 0.84, hint: 'Câmbio médio: troca em 0.30s com perda maior a cada marcha.' },
+            fast:   { label: 'Rápido',  shiftTime: 0.13, loss: 0.20, upshiftRatio: 0.74, hint: 'Câmbio rápido: troca em 0.13s e perde bem mais velocidade.' }
+        };
+        const PLAYER_CC = 100;
+        const AI_PALETTE = [
+            { name: 'Violeta', color: '#a855f7' },
+            { name: 'Laranja', color: '#f97316' },
+            { name: 'Verde', color: '#22c55e' }
+        ];
+
         let gameState = {
             coins: 300,
             gears: 5,
@@ -849,20 +897,21 @@
             equippedParts: {},
             unlockedParts: [],
             carCustoms: {},
-            carUpgrades: {}, // { carId: { focus: 'accel'|'speed'|'drift', level: 0..3 } }
+            carUpgrades: {},
             ghostRecords: {},
             ghostBestTimes: {},
             playerProfile: null,
             localPlayerRecords: {},
-            settings: { sfxVol: 80, sensitivity: 100 }
+            settings: { sfxVol: 80, cameraRotate: false },
+            tuning: { steering: 100, gears: 'medium' },
+            duelCc: 150,
+            duelStats: {}
         };
 
         function loadSaveData() {
             const saved = localStorage.getItem('drift_mania_save_v2');
             if (saved) {
-                try {
-                    gameState = { ...gameState, ...JSON.parse(saved) };
-                } catch(e){}
+                try { gameState = { ...gameState, ...JSON.parse(saved) }; } catch(e){}
             }
         }
 
@@ -872,7 +921,6 @@
 
         loadSaveData();
 
-        // Save migrations for older versions.
         gameState.unlockedCars = Array.isArray(gameState.unlockedCars) ? gameState.unlockedCars : ['starter'];
         gameState.equippedParts = gameState.equippedParts || {};
         gameState.unlockedParts = Array.isArray(gameState.unlockedParts) ? gameState.unlockedParts : [];
@@ -881,52 +929,49 @@
         gameState.ghostRecords = gameState.ghostRecords || {};
         gameState.ghostBestTimes = gameState.ghostBestTimes || {};
         gameState.localPlayerRecords = gameState.localPlayerRecords || {};
-        gameState.settings = { sfxVol: 80, sensitivity: 100, ...(gameState.settings || {}) };
+        gameState.settings = { sfxVol: 80, cameraRotate: false, ...(gameState.settings || {}) };
+        delete gameState.settings.sensitivity;
+        gameState.tuning = { steering: 100, gears: 'medium', ...(gameState.tuning || {}) };
+        if (gameState.tuning.steering < 75) gameState.tuning.steering = 75;
+        if (gameState.tuning.steering > 125) gameState.tuning.steering = 125;
+        if (!GEAR_TUNING[gameState.tuning.gears]) gameState.tuning.gears = 'medium';
+        if (!Number.isFinite(gameState.duelCc)) gameState.duelCc = 150;
+        gameState.duelCc = Math.max(50, Math.min(400, gameState.duelCc));
+        gameState.duelStats = gameState.duelStats && typeof gameState.duelStats === 'object' ? gameState.duelStats : {};
         audio.volume = gameState.settings.sfxVol / 100;
 
-        // --- ENGINE & GAME VARIABLES ---
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
         let isRunning = false;
         let isPaused = false;
-        let currentMode = 'drift';
+        let isCountingDown = false;
+        let currentMode = 'time';
         let currentTrack = TRACK_DATABASE[0];
         let currentCar = CAR_DATABASE[0];
-        let currentGhostTrajectory = [];
-        let replayGhostTrajectory = [];
-        let ghostFrameIndex = 0;
         let selectedPartInGarage = null;
         let introFinished = false;
+        let versusWinner = null;
+        let racePlacement = [];
+        let modeChosen = true;
+        let lastRacedDuelCc = 150;
+        let lastDuelAdaptNote = '';
 
-        // Controllers
         const keys = { left: false, right: false };
         let touchLeftActive = false;
         let touchRightActive = false;
+        let steeringHistory = [];
 
-        // Inertial Drift / Flick Gesture Detector
-        let steeringHistory = []; // Tracks recent steering inputs for inertial flick detection
-
-        // Physics Vehicle Properties
         let car = {
-            x: 0,
-            y: 0,
-            vx: 0,
-            vy: 0,
-            angle: 0,
-            speed: 0,
-            driftScore: 0,
-            isDrifting: false,
-            currentLap: 1,
-            lastCheckpointIndex: 0,
-            nextCheckpointIndex: 1,
-            raceTime: 0,
-            isRespawning: false,
-            driftCombo: 0,
-            driftMultiplier: 1.0,
-            driftIdleTime: 0,
-            totalDistance: 0
+            x: 0, y: 0, vx: 0, vy: 0, angle: 0, speed: 0,
+            driftScore: 0, isDrifting: false, currentLap: 1,
+            lastCheckpointIndex: 0, nextCheckpointIndex: 1,
+            raceTime: 0, isRespawning: false, driftCombo: 0,
+            driftMultiplier: 1.0, driftIdleTime: 0, totalDistance: 0,
+            gear: 1, shifting: false, shiftTimer: 0, isBraking: false
         };
+
+        let aiCars = [];
 
         let particles = [];
         let skidmarks = [];
@@ -949,12 +994,10 @@
             return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
         }
 
-        // Check track road collision & surface
         function getSurfaceAt(x, y, track) {
             const pts = track.points;
             let minDist = Infinity;
             let segIndex = 0;
-
             for (let i = 0; i < pts.length; i++) {
                 const next = pts[(i + 1) % pts.length];
                 const d = distToSegment(x, y, pts[i][0], pts[i][1], next[0], next[1]);
@@ -963,28 +1006,22 @@
                     segIndex = i;
                 }
             }
-
-            const roadW = track.roadWidth || 160;
+            const roadW = track.roadWidth || 230;
             if (minDist <= roadW / 2) {
-                if (track.type === 'mixed') {
-                    return segIndex % 2 === 0 ? 'asphalt' : 'offroad';
-                }
+                if (track.type === 'mixed') return segIndex % 2 === 0 ? 'asphalt' : 'offroad';
                 return track.type === 'offroad' ? 'offroad' : 'asphalt';
             }
-            return 'out'; // Out of track bounds
+            return 'out';
         }
 
-        // Apply Car Upgrades Logic
         function getUpgradedCarStats(baseCar) {
             const up = gameState.carUpgrades[baseCar.id] || { focus: null, level: 0 };
             let accel = baseCar.accel;
             let maxSpeed = baseCar.maxSpeed;
             let driftFactor = baseCar.driftFactor;
-
             if (up.focus === 'accel') accel += up.level * 0.12;
             if (up.focus === 'speed') maxSpeed += up.level * 1.8;
             if (up.focus === 'drift') driftFactor += up.level * 0.04;
-
             PARTS_DATABASE.forEach(part => {
                 if (gameState.equippedParts && gameState.equippedParts[part.id]) {
                     accel += part.accelBonus || 0;
@@ -992,66 +1029,107 @@
                     driftFactor += part.driftBonus || 0;
                 }
             });
+            return { ...baseCar, accel, maxSpeed, driftFactor };
+        }
 
-            return {
-                ...baseCar,
-                accel,
-                maxSpeed,
-                driftFactor
+        function getAgeDifficulty(age = Number(gameState.playerProfile?.age || 16)) {
+            if (age < 10) return { name: 'Fácil', timeBonus: 25, gripAssist: 0.12, aiSpeed: 0.70, aiSteer: 0.028, aiError: 0.22 };
+            if (age < 14) return { name: 'Normal', timeBonus: 15, gripAssist: 0.07, aiSpeed: 0.82, aiSteer: 0.036, aiError: 0.14 };
+            if (age < 18) return { name: 'Avançado', timeBonus: 5, gripAssist: 0.03, aiSpeed: 0.92, aiSteer: 0.044, aiError: 0.08 };
+            return { name: 'Pro', timeBonus: 0, gripAssist: 0, aiSpeed: 1.02, aiSteer: 0.050, aiError: 0.04 };
+        }
+
+        function resetVehicleAtStart(target, offset = 0) {
+            const pts = currentTrack.points;
+            const dx = pts[1][0] - pts[0][0];
+            const dy = pts[1][1] - pts[0][1];
+            const len = Math.hypot(dx, dy) || 1;
+            const nx = -dy / len;
+            const ny = dx / len;
+            target.x = pts[0][0] + nx * offset;
+            target.y = pts[0][1] + ny * offset;
+            target.angle = Math.atan2(dy, dx);
+            target.vx = 0;
+            target.vy = 0;
+            target.speed = 0;
+            target.currentLap = 1;
+            target.lastCheckpointIndex = 0;
+            target.nextCheckpointIndex = 1;
+            target.isRespawning = false;
+        }
+
+        function startCountdown() {
+            isCountingDown = true;
+            const overlay = document.getElementById('countdownOverlay');
+            const text = document.getElementById('countdownText');
+            overlay.classList.remove('hidden');
+            overlay.classList.add('flex');
+            const steps = ['3', '2', '1', 'VAI!'];
+            let i = 0;
+            const tick = () => {
+                if (!isRunning) {
+                    overlay.classList.add('hidden');
+                    overlay.classList.remove('flex');
+                    isCountingDown = false;
+                    return;
+                }
+                text.innerText = steps[i];
+                text.classList.remove('countdown-pop');
+                void text.offsetWidth;
+                text.classList.add('countdown-pop');
+                audio.playBeep(i === 3 ? 880 : 520);
+                i++;
+                if (i < steps.length) {
+                    setTimeout(tick, 800);
+                } else {
+                    setTimeout(() => {
+                        overlay.classList.add('hidden');
+                        overlay.classList.remove('flex');
+                        isCountingDown = false;
+                    }, 450);
+                }
             };
+            tick();
         }
 
         function initRace() {
             const baseCar = CAR_DATABASE.find(c => c.id === gameState.equippedCar) || CAR_DATABASE[0];
             const custom = gameState.carCustoms[baseCar.id] || {};
             const stats = getUpgradedCarStats(baseCar);
-
             currentCar = {
                 ...stats,
                 color: custom.color || baseCar.color,
                 smokeColor: custom.smokeColor || baseCar.smokeColor
             };
 
-            const pts = currentTrack.points;
-            car.x = pts[0][0];
-            car.y = pts[0][1];
-            
-            const dx = pts[1][0] - pts[0][0];
-            const dy = pts[1][1] - pts[0][1];
-            car.angle = Math.atan2(dy, dx);
-
-            car.vx = 0;
-            car.vy = 0;
-            car.speed = 0;
+            resetVehicleAtStart(car, 0);
             car.driftScore = 0;
-            car.currentLap = 1;
-            car.lastCheckpointIndex = 0;
-            car.nextCheckpointIndex = 1;
             car.raceTime = 0;
-            car.isRespawning = false;
-            car.driftScore = 0;
             car.driftCombo = 0;
             car.driftMultiplier = 1.0;
             car.driftIdleTime = 0;
             car.totalDistance = 0;
+            car.gear = 1;
+            car.shifting = false;
+            car.shiftTimer = 0;
+            car.isBraking = false;
+            car.isDrifting = false;
 
-            currentGhostTrajectory = [];
-            replayGhostTrajectory = (currentMode === 'ghost' || currentMode === 'time')
-                ? (gameState.ghostRecords[currentTrack.id] || [])
-                : [];
-            ghostFrameIndex = 0;
+            spawnFieldAIs();
+            versusWinner = null;
+            racePlacement = [];
 
             particles = [];
             skidmarks = [];
             coinsOnTrack = [];
             steeringHistory = [];
 
-            // Spawn coins
+            const pts = currentTrack.points;
             for (let i = 0; i < pts.length; i++) {
                 const pt = pts[i];
                 coinsOnTrack.push({
-                    x: pt[0] + (Math.random() * 100 - 50),
-                    y: pt[1] + (Math.random() * 100 - 50),
+                    x: pt[0] + (Math.random() * 120 - 60),
+                    y: pt[1] + (Math.random() * 120 - 60),
                     collected: false
                 });
             }
@@ -1062,7 +1140,7 @@
 
             if (currentMode === 'drift') {
                 gameTimerInterval = setInterval(() => {
-                    if (isRunning && !isPaused) {
+                    if (isRunning && !isPaused && !isCountingDown) {
                         timeRemaining--;
                         if (timeRemaining <= 0) endRace(true);
                     }
@@ -1077,21 +1155,29 @@
             document.getElementById('hud').classList.remove('hidden');
             document.getElementById('inGameButtons').classList.remove('hidden');
             document.getElementById('touchControls').classList.remove('hidden');
-            
+
+            const aiBox = document.getElementById('hudAiContainer');
+            const ccLabel = document.getElementById('hudCcLabel');
+            aiBox.classList.remove('hidden');
+            document.getElementById('hudLapContainer').classList.remove('hidden');
             if (currentMode === 'drift') {
                 document.getElementById('hudTimeLabel').innerText = 'Tempo Restante';
-                document.getElementById('hudLapContainer').classList.add('hidden');
             } else {
                 document.getElementById('hudTimeLabel').innerText = 'Tempo Decorrido';
-                document.getElementById('hudLapContainer').classList.remove('hidden');
             }
+            if (currentMode === 'duel') {
+                ccLabel.classList.remove('hidden');
+                ccLabel.innerText = `IA ${gameState.duelCc}cc`;
+            } else {
+                ccLabel.classList.add('hidden');
+            }
+
+            startCountdown();
         }
 
-        // Respawn player at last checkpoint
         function respawnAtLastCheckpoint() {
             if (car.isRespawning) return;
             car.isRespawning = true;
-            
             audio.playRespawnSound();
             document.getElementById('respawnFlash').style.opacity = '1';
             document.getElementById('respawnNotice').classList.remove('hidden');
@@ -1100,51 +1186,343 @@
                 const pts = currentTrack.points;
                 const lastPt = pts[car.lastCheckpointIndex];
                 const nextPt = pts[(car.lastCheckpointIndex + 1) % pts.length];
-
                 car.x = lastPt[0];
                 car.y = lastPt[1];
-                
-                const dx = nextPt[0] - lastPt[0];
-                const dy = nextPt[1] - lastPt[1];
-                car.angle = Math.atan2(dy, dx);
-
+                car.angle = Math.atan2(nextPt[1] - lastPt[1], nextPt[0] - lastPt[0]);
                 car.vx = 0;
                 car.vy = 0;
-                car.speed = 2; // Give a tiny boost forward
-
+                car.speed = 2;
                 document.getElementById('respawnFlash').style.opacity = '0';
                 document.getElementById('respawnNotice').classList.add('hidden');
                 car.isRespawning = false;
             }, 600);
         }
 
+        function ccSpeedMult(cc) {
+            return 0.78 + (Number(cc) / 100) * 0.22;
+        }
+
+        function snapCc(value) {
+            const snapped = Math.round(value / 25) * 25;
+            return Math.max(50, Math.min(400, snapped));
+        }
+
+        function getDuelBucket(cc) {
+            const key = String(snapCc(cc));
+            if (!gameState.duelStats[key]) gameState.duelStats[key] = { wins: 0, losses: 0 };
+            return gameState.duelStats[key];
+        }
+
+        function adaptDuelCc(racedCc, playerWon) {
+            const key = String(snapCc(racedCc));
+            const bucket = getDuelBucket(key);
+            if (playerWon) bucket.wins += 1;
+            else bucket.losses += 1;
+
+            const rows = Object.entries(gameState.duelStats).map(([cc, stat]) => {
+                const total = (stat.wins || 0) + (stat.losses || 0);
+                const winRate = total ? stat.wins / total : 0;
+                const lossRate = total ? stat.losses / total : 0;
+                return { cc: Number(cc), wins: stat.wins || 0, losses: stat.losses || 0, total, winRate, lossRate };
+            }).filter(row => row.total >= 2);
+
+            const strongWins = rows.filter(row => row.winRate >= 0.6).sort((a, b) => b.cc - a.cc || b.winRate - a.winRate);
+            const strongLosses = rows.filter(row => row.lossRate >= 0.6).sort((a, b) => a.cc - b.cc || b.lossRate - a.lossRate);
+
+            let bestPair = null;
+            let bestDiff = Infinity;
+            for (const x of strongWins) {
+                for (const y of strongLosses) {
+                    if (x.cc === y.cc) continue;
+                    const rateGap = Math.abs(x.winRate - y.lossRate);
+                    if (rateGap > 0.12) continue;
+                    if (rateGap < bestDiff || (rateGap === bestDiff && Math.abs(y.cc - x.cc) > Math.abs((bestPair?.y.cc || 0) - (bestPair?.x.cc || 0)))) {
+                        bestDiff = rateGap;
+                        bestPair = { x, y };
+                    }
+                }
+            }
+
+            if (bestPair) {
+                const mid = bestPair.x.cc + (bestPair.y.cc - bestPair.x.cc) / 2;
+                const next = snapCc(mid);
+                return {
+                    cc: next,
+                    note: `ponto médio ${bestPair.x.cc}cc/${bestPair.y.cc}cc → ${next}cc`
+                };
+            }
+
+            const stepped = snapCc(racedCc + (playerWon ? 50 : -50));
+            return {
+                cc: stepped,
+                note: playerWon ? `+50cc → ${stepped}cc` : `-50cc → ${stepped}cc`
+            };
+        }
+
+        function makeAICar(index, style, cc, laneOffset) {
+            const skin = AI_PALETTE[index % AI_PALETTE.length];
+            const bot = {
+                id: `ai_${index}`,
+                name: skin.name,
+                color: skin.color,
+                style,
+                cc,
+                laneOffset,
+                x: 0, y: 0, vx: 0, vy: 0, angle: 0, speed: 0,
+                currentLap: 1, lastCheckpointIndex: 0, nextCheckpointIndex: 1,
+                isRespawning: false, finished: false, raceTime: 0,
+                driftScore: 0, isDrifting: false
+            };
+            resetVehicleAtStart(bot, laneOffset);
+            return bot;
+        }
+
+        function spawnFieldAIs() {
+            aiCars = [];
+            if (currentMode === 'duel') {
+                lastRacedDuelCc = gameState.duelCc;
+                aiCars.push(makeAICar(0, 'race', gameState.duelCc, -70));
+                return;
+            }
+            const style = currentMode === 'drift' ? 'drift' : 'race';
+            const baseCc = PLAYER_CC + (currentMode === 'drift' ? 20 : 10);
+            aiCars.push(makeAICar(0, style, baseCc + 10, -80));
+            aiCars.push(makeAICar(1, style, baseCc, 80));
+            aiCars.push(makeAICar(2, style, baseCc - 15, -160));
+        }
+
+        function nearestTrackInfo(x, y, track) {
+            const pts = track.points;
+            let best = { dist: Infinity, seg: 0, t: 0, px: pts[0][0], py: pts[0][1], tx: 1, ty: 0, nx: 0, ny: 1 };
+            for (let i = 0; i < pts.length; i++) {
+                const a = pts[i];
+                const b = pts[(i + 1) % pts.length];
+                const lx = b[0] - a[0];
+                const ly = b[1] - a[1];
+                const l2 = lx * lx + ly * ly || 1;
+                let t = ((x - a[0]) * lx + (y - a[1]) * ly) / l2;
+                t = Math.max(0, Math.min(1, t));
+                const px = a[0] + t * lx;
+                const py = a[1] + t * ly;
+                const d = Math.hypot(x - px, y - py);
+                if (d < best.dist) {
+                    const len = Math.hypot(lx, ly) || 1;
+                    best = { dist: d, seg: i, t, px, py, tx: lx / len, ty: ly / len, nx: -ly / len, ny: lx / len };
+                }
+            }
+            return best;
+        }
+
+        function pointAlongTrack(fromSeg, fromT, distance) {
+            const pts = currentTrack.points;
+            let seg = fromSeg;
+            let t = fromT;
+            let left = distance;
+            while (left > 0) {
+                const a = pts[seg];
+                const b = pts[(seg + 1) % pts.length];
+                const sl = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+                const remain = (1 - t) * sl;
+                if (left <= remain) {
+                    const nt = t + left / sl;
+                    return {
+                        x: a[0] + (b[0] - a[0]) * nt,
+                        y: a[1] + (b[1] - a[1]) * nt,
+                        tx: (b[0] - a[0]) / sl,
+                        ty: (b[1] - a[1]) / sl,
+                        nx: -(b[1] - a[1]) / sl,
+                        ny: (b[0] - a[0]) / sl
+                    };
+                }
+                left -= remain;
+                seg = (seg + 1) % pts.length;
+                t = 0;
+            }
+            return { x: pts[0][0], y: pts[0][1], tx: 1, ty: 0, nx: 0, ny: 1 };
+        }
+
+        function respawnAI(ai) {
+            if (ai.isRespawning) return;
+            ai.isRespawning = true;
+            setTimeout(() => {
+                const pts = currentTrack.points;
+                const lastPt = pts[ai.lastCheckpointIndex];
+                const nextPt = pts[(ai.lastCheckpointIndex + 1) % pts.length];
+                const dx = nextPt[0] - lastPt[0];
+                const dy = nextPt[1] - lastPt[1];
+                const len = Math.hypot(dx, dy) || 1;
+                ai.x = lastPt[0] + (-dy / len) * ai.laneOffset * 0.35;
+                ai.y = lastPt[1] + (dx / len) * ai.laneOffset * 0.35;
+                ai.angle = Math.atan2(dy, dx);
+                ai.vx = 0;
+                ai.vy = 0;
+                ai.speed = 2.2;
+                ai.isRespawning = false;
+            }, 280);
+        }
+
+        function raceProgress(entity) {
+            return (entity.currentLap - 1) * currentTrack.points.length + entity.lastCheckpointIndex + 0.01 * (1 / (1 + Math.hypot(
+                entity.x - currentTrack.points[entity.nextCheckpointIndex][0],
+                entity.y - currentTrack.points[entity.nextCheckpointIndex][1]
+            )));
+        }
+
+        function getGearLimits() {
+            const tune = GEAR_TUNING[gameState.tuning.gears] || GEAR_TUNING.medium;
+            const ratios = [0.16, 0.36, 0.58, 0.80, 1.00];
+            return { tune, ratios, maxGear: 5 };
+        }
+
+        function updateGears() {
+            const { tune, ratios, maxGear } = getGearLimits();
+            if (car.shifting) {
+                car.shiftTimer -= 1 / 60;
+                if (car.shiftTimer <= 0) {
+                    car.shifting = false;
+                    car.speed *= (1 - tune.loss);
+                }
+                return;
+            }
+            const gearMax = currentCar.maxSpeed * ratios[car.gear - 1];
+            if (car.gear < maxGear && car.speed >= gearMax * tune.upshiftRatio && !car.isBraking) {
+                car.shifting = true;
+                car.shiftTimer = tune.shiftTime;
+                car.gear++;
+            }
+            if (car.gear > 1 && car.speed < currentCar.maxSpeed * ratios[car.gear - 2] * 0.55) {
+                car.gear--;
+            }
+        }
+
+        function advanceCheckpoints(entity, onFinishLap) {
+            const pts = currentTrack.points;
+            const targetPt = pts[entity.nextCheckpointIndex];
+            if (Math.hypot(entity.x - targetPt[0], entity.y - targetPt[1]) < currentTrack.roadWidth) {
+                entity.lastCheckpointIndex = entity.nextCheckpointIndex;
+                entity.nextCheckpointIndex = (entity.nextCheckpointIndex + 1) % pts.length;
+                if (entity.nextCheckpointIndex === 1) {
+                    entity.currentLap++;
+                    if (onFinishLap) onFinishLap();
+                }
+            }
+        }
+
+        function updateOneAI(ai, others) {
+            if (ai.finished || ai.isRespawning) return;
+            const difficulty = getAgeDifficulty();
+            const info = nearestTrackInfo(ai.x, ai.y, currentTrack);
+            const half = (currentTrack.roadWidth || 240) / 2;
+            if (info.dist > half * 0.98) {
+                respawnAI(ai);
+                return;
+            }
+
+            const lookAhead = ai.style === 'drift' ? 260 : 480;
+            const look = pointAlongTrack(info.seg, info.t, lookAhead);
+            let tx = look.x + look.nx * ai.laneOffset;
+            let ty = look.y + look.ny * ai.laneOffset;
+
+            if (info.dist > half * 0.42) {
+                const pull = (info.dist - half * 0.28) / half;
+                tx = tx * (1 - pull) + info.px * pull;
+                ty = ty * (1 - pull) + info.py * pull;
+            }
+
+            const pack = others.concat([{ x: car.x, y: car.y, id: 'player' }]);
+            for (const other of pack) {
+                if (other.id === ai.id) continue;
+                const dx = ai.x - other.x;
+                const dy = ai.y - other.y;
+                const d = Math.hypot(dx, dy);
+                if (d > 0 && d < 110) {
+                    const push = (110 - d) / 110;
+                    tx += (dx / d) * 140 * push;
+                    ty += (dy / d) * 140 * push;
+                    ai.speed *= (1 - 0.012 * push);
+                }
+            }
+
+            const desired = Math.atan2(ty - ai.y, tx - ai.x);
+            let diff = desired - ai.angle;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+
+            const steerCap = (ai.style === 'drift' ? 0.055 : 0.042) + difficulty.aiSteer * 0.15;
+            ai.angle += Math.max(-steerCap, Math.min(steerCap, diff));
+
+            const surface = getSurfaceAt(ai.x, ai.y, currentTrack);
+            let grip = surface === 'offroad' ? 0.78 : 0.96;
+            let accelMult = surface === 'offroad' ? 0.86 : 1;
+            if (ai.style === 'drift') grip *= 0.62;
+
+            const corner = Math.min(1, Math.abs(diff) / 0.9);
+            const ageMult = difficulty.aiSpeed;
+            const aiMax = currentCar.maxSpeed * ccSpeedMult(ai.cc) * ageMult * accelMult * (1 - corner * 0.35);
+            if (ai.speed < aiMax) ai.speed += currentCar.accel * 0.9 * accelMult;
+            else ai.speed *= 0.985;
+
+            const fx = Math.cos(ai.angle);
+            const fy = Math.sin(ai.angle);
+            const blend = 0.18 * grip;
+            ai.vx = ai.vx * (1 - blend) + fx * ai.speed * blend;
+            ai.vy = ai.vy * (1 - blend) + fy * ai.speed * blend;
+            ai.x += ai.vx;
+            ai.y += ai.vy;
+            ai.raceTime += 1 / 60;
+
+            const moveAng = Math.atan2(ai.vy, ai.vx);
+            let slip = Math.abs(ai.angle - moveAng);
+            while (slip > Math.PI) slip -= Math.PI * 2;
+            slip = Math.abs(slip);
+            ai.isDrifting = ai.style === 'drift' && slip > 0.18 && ai.speed > 2.2;
+            if (ai.isDrifting) ai.driftScore += Math.floor(slip * ai.speed * 4);
+
+            advanceCheckpoints(ai, () => {
+                if (ai.currentLap > currentTrack.laps) {
+                    ai.finished = true;
+                    if (currentMode !== 'drift' && !versusWinner) {
+                        versusWinner = 'ai';
+                        endRace(true);
+                    }
+                }
+            });
+        }
+
+        function updateAI() {
+            if (!aiCars.length) return;
+            aiCars.forEach(ai => updateOneAI(ai, aiCars));
+        }
+
         function updatePhysics() {
             if (!isRunning || isPaused || car.isRespawning) return;
+            if (isCountingDown) {
+                updateHUD(0);
+                return;
+            }
 
-            if (currentMode === 'time' || currentMode === 'ghost') car.raceTime += 1 / 60;
+            if (currentMode === 'time' || currentMode === 'duel' || currentMode === 'drift') car.raceTime += 1 / 60;
 
             const isLeft = keys.left || touchLeftActive;
             const isRight = keys.right || touchRightActive;
+            const braking = isLeft && isRight;
+            car.isBraking = braking;
+            document.getElementById('brakeNotice').classList.toggle('hidden', !braking);
 
-            // Track steering flick (feint turn / inertial drift initiation)
             let steerDir = 0;
-            if (isLeft) steerDir = -1;
-            if (isRight) steerDir = 1;
+            if (isLeft && !isRight) steerDir = -1;
+            if (isRight && !isLeft) steerDir = 1;
 
             steeringHistory.push({ dir: steerDir, time: Date.now() });
             if (steeringHistory.length > 25) steeringHistory.shift();
 
-            // Detect rapid flick (Feint Turn): Turn one way then quickly turn the other way
             let isFlicking = false;
             if (steeringHistory.length >= 12 && steerDir !== 0) {
                 const recentOpposite = steeringHistory.some(s => s.dir === -steerDir && (Date.now() - s.time) < 450);
                 if (recentOpposite) isFlicking = true;
             }
 
-            // Surface Traction Physics
             const surface = getSurfaceAt(car.x, car.y, currentTrack);
-            
-            // Check Out of Bounds / Respawn
             if (surface === 'out') {
                 respawnAtLastCheckpoint();
                 return;
@@ -1155,50 +1533,46 @@
             grip += ageDifficulty.gripAssist;
             let accelMult = surface === 'offroad' ? 0.85 : 1.0;
 
-            const sensFactor = (gameState.settings.sensitivity / 100);
+            const sensFactor = (gameState.tuning.steering / 100);
             const steerPower = 0.05 * sensFactor * currentCar.driftFactor;
 
-     let speedLimit = currentCar.maxSpeed * accelMult;
+            updateGears();
+            const { ratios } = getGearLimits();
+            const gearCap = currentCar.maxSpeed * ratios[car.gear - 1];
 
-if (isLeft && isRight) {
-    speedLimit *= 0.5;
-}
+            if (braking) {
+                car.speed *= 0.955;
+                if (car.speed < 0.4) car.speed = 0;
+            } else if (!car.shifting && car.speed < Math.min(currentCar.maxSpeed * accelMult, gearCap)) {
+                car.speed += currentCar.accel * accelMult * (0.72 + car.gear * 0.06);
+            } else if (!car.shifting) {
+                car.speed *= 0.985;
+            }
 
-if (car.speed < speedLimit) {
-    car.speed += currentCar.accel * accelMult;
-} else {
-    car.speed *= 0.985;
-}
-
-            // Apply Steering
-            if (isLeft) car.angle -= steerPower;
-            if (isRight) car.angle += steerPower;
+            if (!braking) {
+                if (isLeft) car.angle -= steerPower;
+                if (isRight) car.angle += steerPower;
+            }
 
             const forwardX = Math.cos(car.angle);
             const forwardY = Math.sin(car.angle);
-
-            // Vector Velocity Smooth Transitions
             const targetVx = forwardX * car.speed;
             const targetVy = forwardY * car.speed;
-
-            // Reduce grip if flicking to easily trigger drift on asphalt
             if (isFlicking) grip *= 0.5;
 
             car.vx = car.vx * (1 - (0.12 * grip)) + targetVx * (0.12 * grip);
             car.vy = car.vy * (1 - (0.12 * grip)) + targetVy * (0.12 * grip);
-
             car.x += car.vx;
             car.y += car.vy;
 
-            // Drift Angle Check
             const currentMoveAngle = Math.atan2(car.vy, car.vx);
             let angleDiff = Math.abs(car.angle - currentMoveAngle);
             while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
             angleDiff = Math.abs(angleDiff);
 
             const actualSpeed = Math.hypot(car.vx, car.vy);
-            const driftThreshold = isFlicking ? 0.2 : 0.32; // Flick makes drift trigger much easier
-            car.isDrifting = (angleDiff > driftThreshold) && (actualSpeed > 2.5);
+            const driftThreshold = isFlicking ? 0.2 : 0.32;
+            car.isDrifting = (angleDiff > driftThreshold) && (actualSpeed > 2.5) && !braking;
 
             audio.updateEngine(actualSpeed / currentCar.maxSpeed, car.isDrifting);
 
@@ -1206,12 +1580,9 @@ if (car.speed < speedLimit) {
                 const driftPoints = Math.max(1, Math.floor(angleDiff * actualSpeed * 6 * currentCar.multiplier));
                 car.driftCombo += driftPoints;
                 car.driftIdleTime = 0;
-
-                // Multiplier grows every 1000 projected points by +0.2.
                 const projectedScore = car.driftScore + car.driftCombo;
-                car.driftMultiplier = 1 + Math.floor(projectedScore / 1000) * 0.2;
+                car.driftMultiplier = Math.min(1.8, 1 + Math.floor(projectedScore / 2200) * 0.1);
 
-                // Smoke
                 particles.push({
                     x: car.x - forwardX * 20 + (Math.random() * 10 - 5),
                     y: car.y - forwardY * 20 + (Math.random() * 10 - 5),
@@ -1221,32 +1592,18 @@ if (car.speed < speedLimit) {
                     vx: (Math.random() - 0.5) * 0.5,
                     vy: (Math.random() - 0.5) * 0.5
                 });
-
-                // Skidmarks
                 skidmarks.push({ x: car.x, y: car.y, alpha: 0.5 });
             }
 
             if (skidmarks.length > 300) skidmarks.shift();
 
-            // Commit a drift combo after 3 seconds without drifting.
             if (!car.isDrifting) {
                 car.driftIdleTime += 1 / 60;
-                if (car.driftCombo > 0 && car.driftIdleTime >= 3) {
-                    commitDriftCombo(false);
-                }
+                if (car.driftCombo > 0 && car.driftIdleTime >= 3) commitDriftCombo(false);
             } else {
                 car.driftIdleTime = 0;
             }
 
-            // Ghost recording/replay. A frame is sampled every 2 simulation frames.
-            if ((currentMode === 'ghost' || currentMode === 'time') && isRunning) {
-                if (currentGhostTrajectory.length === 0 || currentGhostTrajectory.length % 2 === 0) {
-                    currentGhostTrajectory.push({ x: car.x, y: car.y, angle: car.angle });
-                }
-                ghostFrameIndex++;
-            }
-
-            // Particles update
             for (let i = particles.length - 1; i >= 0; i--) {
                 const p = particles[i];
                 p.x += p.vx;
@@ -1256,7 +1613,6 @@ if (car.speed < speedLimit) {
                 if (p.alpha <= 0) particles.splice(i, 1);
             }
 
-            // Coins
             coinsOnTrack.forEach(coin => {
                 if (!coin.collected && Math.hypot(car.x - coin.x, car.y - coin.y) < 35) {
                     coin.collected = true;
@@ -1266,28 +1622,15 @@ if (car.speed < speedLimit) {
                 }
             });
 
-            // Checkpoint System
-            const pts = currentTrack.points;
-            const targetPt = pts[car.nextCheckpointIndex];
-            if (Math.hypot(car.x - targetPt[0], car.y - targetPt[1]) < currentTrack.roadWidth) {
-                car.lastCheckpointIndex = car.nextCheckpointIndex;
-                car.nextCheckpointIndex = (car.nextCheckpointIndex + 1) % pts.length;
-                
-                if (car.nextCheckpointIndex === 1) {
-                    car.currentLap++;
-
-                    // Crossing the black/white finish line banks any pending drift.
-                    // The finish-line bank is doubled as requested.
-                    if (currentMode === 'drift') {
-                        commitDriftCombo(true);
-                    }
-
-                    if ((currentMode === 'time' || currentMode === 'ghost') && car.currentLap > currentTrack.laps) {
-                        endRace(true);
-                    }
+            advanceCheckpoints(car, () => {
+                if (currentMode === 'drift') commitDriftCombo(true);
+                if ((currentMode === 'time' || currentMode === 'duel') && car.currentLap > currentTrack.laps) {
+                    if (!versusWinner) versusWinner = 'player';
+                    endRace(true);
                 }
-            }
+            });
 
+            updateAI();
             updateHUD(actualSpeed);
         }
 
@@ -1299,6 +1642,8 @@ if (car.speed < speedLimit) {
             if (comboEl) comboEl.innerText = car.driftCombo > 0 ? `+${Math.floor(car.driftCombo).toLocaleString()} combo` : 'aguardando drift';
             document.getElementById('hudCoins').innerText = gameState.coins;
             document.getElementById('hudGears').innerText = gameState.gears;
+            const gearEl = document.getElementById('hudGear');
+            if (gearEl) gearEl.innerText = car.shifting ? `${car.gear}*` : `${car.gear}`;
 
             const driftBox = document.getElementById('driftScoreBox');
             if (car.isDrifting) driftBox.classList.remove('opacity-0');
@@ -1310,24 +1655,70 @@ if (car.speed < speedLimit) {
                 const mins = Math.floor(car.raceTime / 60);
                 const secs = (car.raceTime % 60).toFixed(1);
                 document.getElementById('hudTime').innerText = `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
-                document.getElementById('hudLap').innerText = `${Math.min(car.currentLap, currentTrack.laps)}/${currentTrack.laps}`;
             }
+            document.getElementById('hudLap').innerText = `${Math.min(car.currentLap, currentTrack.laps)}/${currentTrack.laps}`;
+            const field = [{ name: 'Você', progress: raceProgress(car), score: car.driftScore }, ...aiCars.map(a => ({
+                name: a.name, progress: raceProgress(a), score: a.driftScore
+            }))];
+            field.sort((a, b) => currentMode === 'drift' ? b.score - a.score : b.progress - a.progress);
+            const pos = field.findIndex(item => item.name === 'Você') + 1;
+            document.getElementById('hudAiLap').innerText = `${pos}º / ${field.length} • ${aiCars.map(a => a.name[0]).join(' ')}`;
+        }
+
+        function drawCarBody(x, y, angle, color, ghost = false, isAI = false) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+            ctx.globalAlpha = ghost ? 0.28 : 1;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            ctx.fillRect(-20, -10, 42, 24);
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.roundRect(-22, -12, 44, 24, 5);
+            ctx.fill();
+            ctx.fillStyle = ghost ? '#e9d5ff' : '#0f172a';
+            ctx.fillRect(-4, -10, 14, 20);
+            ctx.fillStyle = isAI ? '#f472b6' : '#67e8f9';
+            ctx.fillRect(20, -11, 4, 5);
+            ctx.fillRect(20, 6, 4, 5);
+            ctx.fillStyle = isAI ? '#7c3aed' : '#0284c7';
+            ctx.fillRect(-24, -12, 5, 24);
+
+            if (!ghost && !isAI) {
+                const equippedPartsNow = PARTS_DATABASE.filter(part => gameState.equippedParts?.[part.id]);
+                const neonPart = equippedPartsNow.find(part => part.type === 'neon');
+                if (neonPart) {
+                    ctx.shadowBlur = 12;
+                    ctx.shadowColor = neonPart.neonColor || '#06b6d4';
+                    ctx.fillStyle = neonPart.neonColor || '#06b6d4';
+                    ctx.fillRect(-18, 12, 36, 3);
+                    ctx.shadowBlur = 0;
+                }
+                if (equippedPartsNow.some(part => part.type === 'spoiler' || part.type === 'aerokit')) {
+                    ctx.fillStyle = '#cbd5e1';
+                    ctx.fillRect(-26, -14, 7, 28);
+                }
+                if (equippedPartsNow.some(part => part.type === 'wheels')) {
+                    ctx.fillStyle = '#e5e7eb';
+                    ctx.fillRect(-18, -14, 5, 5);
+                    ctx.fillRect(-18, 9, 5, 5);
+                }
+            }
+            ctx.restore();
         }
 
         function render() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
             ctx.save();
-            ctx.translate(canvas.width / 2 - car.x, canvas.height / 2 - car.y);
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            if (gameState.settings.cameraRotate) ctx.rotate(-car.angle);
+            ctx.translate(-car.x, -car.y);
 
-            // Ground Background
             ctx.fillStyle = currentTrack.bg;
-            ctx.fillRect(car.x - canvas.width * 1.5, car.y - canvas.height * 1.5, canvas.width * 3, canvas.height * 3);
+            ctx.fillRect(car.x - canvas.width * 2, car.y - canvas.height * 2, canvas.width * 4, canvas.height * 4);
 
-            // Track Curb / Border
             const pts = currentTrack.points;
-            const roadW = currentTrack.roadWidth || 160;
-
+            const roadW = currentTrack.roadWidth || 230;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
 
@@ -1335,11 +1726,10 @@ if (car.speed < speedLimit) {
             ctx.moveTo(pts[0][0], pts[0][1]);
             for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
             ctx.closePath();
-            ctx.lineWidth = roadW + 30;
+            ctx.lineWidth = roadW + 36;
             ctx.strokeStyle = currentTrack.border;
             ctx.stroke();
 
-            // Road Surface
             if (currentTrack.type === 'mixed') {
                 for (let i = 0; i < pts.length; i++) {
                     const next = pts[(i + 1) % pts.length];
@@ -1360,26 +1750,23 @@ if (car.speed < speedLimit) {
                 ctx.stroke();
             }
 
-            // Center Line
             ctx.beginPath();
             ctx.moveTo(pts[0][0], pts[0][1]);
             for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
             ctx.closePath();
             ctx.lineWidth = 3;
-            ctx.setLineDash([20, 20]);
+            ctx.setLineDash([28, 22]);
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
             ctx.stroke();
             ctx.setLineDash([]);
 
-            // Checkpoints visual markers
             pts.forEach((pt, idx) => {
                 ctx.beginPath();
-                ctx.arc(pt[0], pt[1], 12, 0, Math.PI * 2);
+                ctx.arc(pt[0], pt[1], 14, 0, Math.PI * 2);
                 ctx.fillStyle = idx === car.lastCheckpointIndex ? '#22c55e' : (idx === car.nextCheckpointIndex ? '#22d3ee' : 'rgba(255,255,255,0.2)');
                 ctx.fill();
             });
 
-            // Finish Line
             ctx.save();
             ctx.translate(pts[0][0], pts[0][1]);
             const finishAngle = Math.atan2(pts[1][1] - pts[0][1], pts[1][0] - pts[0][0]);
@@ -1391,7 +1778,6 @@ if (car.speed < speedLimit) {
             }
             ctx.restore();
 
-            // Skidmarks
             skidmarks.forEach(sm => {
                 ctx.beginPath();
                 ctx.arc(sm.x, sm.y, 5, 0, Math.PI * 2);
@@ -1399,7 +1785,6 @@ if (car.speed < speedLimit) {
                 ctx.fill();
             });
 
-            // Coins
             coinsOnTrack.forEach(c => {
                 if (!c.collected) {
                     ctx.beginPath();
@@ -1412,7 +1797,6 @@ if (car.speed < speedLimit) {
                 }
             });
 
-            // Smoke Particles
             particles.forEach(p => {
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
@@ -1422,73 +1806,11 @@ if (car.speed < speedLimit) {
                 ctx.globalAlpha = 1.0;
             });
 
-            // Best ghost trajectory
-            if ((currentMode === 'ghost' || currentMode === 'time') && replayGhostTrajectory.length) {
-                const g = replayGhostTrajectory[Math.min(ghostFrameIndex, replayGhostTrajectory.length - 1)];
-                if (g) {
-                    ctx.save();
-                    ctx.translate(g.x, g.y);
-                    ctx.rotate(g.angle);
-                    ctx.globalAlpha = 0.28;
-                    ctx.fillStyle = '#a855f7';
-                    ctx.fillRect(-22, -12, 44, 24);
-                    ctx.fillStyle = '#e9d5ff';
-                    ctx.fillRect(4, -9, 12, 18);
-                    ctx.globalAlpha = 1;
-                    ctx.restore();
-                }
-            }
+            aiCars.forEach(ai => {
+                if (!ai.isRespawning) drawCarBody(ai.x, ai.y, ai.angle, ai.color, false, true);
+            });
 
-            // Vehicle
-            ctx.save();
-            ctx.translate(car.x, car.y);
-            ctx.rotate(car.angle);
-
-            // Shadow
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-            ctx.fillRect(-20, -10, 42, 24);
-
-            // Car Body
-            ctx.fillStyle = currentCar.color;
-            ctx.beginPath();
-            ctx.roundRect(-22, -12, 44, 24, 5);
-            ctx.fill();
-
-            // Windshield
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(-4, -10, 14, 20);
-
-            // Headlights
-            ctx.fillStyle = '#67e8f9';
-            ctx.fillRect(20, -11, 4, 5);
-            ctx.fillRect(20, 6, 4, 5);
-
-            // Spoiler
-            ctx.fillStyle = '#0284c7';
-            ctx.fillRect(-24, -12, 5, 24);
-
-            // Equipped visual parts (keeps the original car body).
-            const equippedPartsNow = PARTS_DATABASE.filter(part => gameState.equippedParts?.[part.id]);
-            const neonPart = equippedPartsNow.find(part => part.type === 'neon');
-            if (neonPart) {
-                ctx.shadowBlur = 12;
-                ctx.shadowColor = neonPart.neonColor || '#06b6d4';
-                ctx.fillStyle = neonPart.neonColor || '#06b6d4';
-                ctx.fillRect(-18, 12, 36, 3);
-                ctx.shadowBlur = 0;
-            }
-            if (equippedPartsNow.some(part => part.type === 'spoiler' || part.type === 'aerokit')) {
-                ctx.fillStyle = '#cbd5e1';
-                ctx.fillRect(-26, -14, 7, 28);
-            }
-            if (equippedPartsNow.some(part => part.type === 'wheels')) {
-                ctx.fillStyle = '#e5e7eb';
-                ctx.fillRect(-18, -14, 5, 5);
-                ctx.fillRect(-18, 9, 5, 5);
-            }
-
-            ctx.restore();
-
+            drawCarBody(car.x, car.y, car.angle, currentCar.color, false, false);
             ctx.restore();
         }
 
@@ -1500,30 +1822,39 @@ if (car.speed < speedLimit) {
 
         async function endRace(completed = true) {
             if (!isRunning) return;
-
-            // Bank pending drift normally when the timer/race ends.
             if (car.driftCombo > 0) commitDriftCombo(false);
 
             isRunning = false;
+            isCountingDown = false;
             audio.stopEngine();
             if (gameTimerInterval) {
                 clearInterval(gameTimerInterval);
                 gameTimerInterval = null;
             }
 
-            const coinsEarned = Math.floor(car.driftScore / 180) + 60;
+            let coinsEarned = Math.floor(car.driftScore / 180) + 60;
+            const field = [
+                { name: 'Você', progress: raceProgress(car), score: car.driftScore, time: car.raceTime, player: true },
+                ...aiCars.map(a => ({ name: a.name, progress: raceProgress(a), score: a.driftScore, time: a.raceTime, player: false }))
+            ];
+            field.sort((a, b) => currentMode === 'drift' ? b.score - a.score : b.progress - a.progress);
+            racePlacement = field;
+            const playerWon = field[0] && field[0].player;
+            if (currentMode === 'duel') {
+                versusWinner = playerWon ? 'player' : 'ai';
+                const racedCc = lastRacedDuelCc || gameState.duelCc;
+                const adapted = adaptDuelCc(racedCc, playerWon);
+                gameState.duelCc = adapted.cc;
+                lastDuelAdaptNote = adapted.note;
+            } else if (currentMode === 'time') {
+                versusWinner = playerWon ? 'player' : 'ai';
+            } else if (currentMode === 'drift') {
+                versusWinner = playerWon ? 'player' : 'ai';
+            }
+            if (playerWon) coinsEarned += 80;
+            else coinsEarned = Math.max(25, Math.floor(coinsEarned * 0.6));
             gameState.coins += coinsEarned;
 
-            // Keep the best ghost for the current track.
-            if ((currentMode === 'ghost' || currentMode === 'time') && completed) {
-                const oldBest = gameState.ghostBestTimes[currentTrack.id];
-                if (oldBest == null || car.raceTime < oldBest) {
-                    gameState.ghostBestTimes[currentTrack.id] = car.raceTime;
-                    gameState.ghostRecords[currentTrack.id] = currentGhostTrajectory.slice(-12000);
-                }
-            }
-
-            // Update player-local record.
             if (gameState.playerProfile) {
                 const profileId = gameState.playerProfile.id;
                 const old = gameState.localPlayerRecords[profileId] || {
@@ -1535,7 +1866,7 @@ if (car.speed < speedLimit) {
                 old.nome = gameState.playerProfile.name;
                 old.idade = gameState.playerProfile.age;
                 if (currentMode === 'drift' && car.driftScore > old.bestDriftScore) old.bestDriftScore = car.driftScore;
-                if ((currentMode === 'ghost' || currentMode === 'time') && completed &&
+                if ((currentMode === 'time' || currentMode === 'duel') && completed &&
                     (old.bestGhostTime == null || car.raceTime < old.bestGhostTime)) {
                     old.bestGhostTime = car.raceTime;
                 }
@@ -1548,32 +1879,36 @@ if (car.speed < speedLimit) {
             await saveOnlinePlayerRecord();
 
             document.getElementById('resDrift').innerText = car.driftScore.toLocaleString();
-
             const mins = Math.floor(car.raceTime / 60);
             const secs = (car.raceTime % 60).toFixed(1);
             document.getElementById('resTime').innerText = `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
             document.getElementById('resCoins').innerText = `+${coinsEarned} Moedas`;
 
+            const versusRow = document.getElementById('resVersusRow');
+            versusRow.classList.remove('hidden');
+            const placeText = racePlacement.map((item, i) => `${i + 1}º ${item.name}`).join(' • ');
+            let extra = '';
+            if (currentMode === 'duel') extra = ` • próxima IA ${gameState.duelCc}cc${lastDuelAdaptNote ? ' (' + lastDuelAdaptNote + ')' : ''}`;
+            document.getElementById('resVersus').innerText = placeText + extra;
+
             const resultTitle = document.getElementById('resultTitle');
-            resultTitle.innerText = currentMode === 'drift'
-                ? 'DRIFT CONCLUÍDO!'
-                : (currentMode === 'ghost' ? 'FANTASMA CONCLUÍDO!' : 'CORRIDA CONCLUÍDA!');
+            if (currentMode === 'drift') resultTitle.innerText = versusWinner === 'player' ? 'MELHOR DRIFT!' : 'DRIFT CONCLUÍDO!';
+            else if (versusWinner === 'player') resultTitle.innerText = 'VOCÊ VENCEU!';
+            else resultTitle.innerText = 'A IA CHEGOU ANTES!';
 
             document.getElementById('hud').classList.add('hidden');
             document.getElementById('inGameButtons').classList.add('hidden');
             document.getElementById('touchControls').classList.add('hidden');
+            document.getElementById('countdownOverlay').classList.add('hidden');
             document.getElementById('uiOverlay').classList.remove('hidden');
-
             hideAllMenuPanels();
             document.getElementById('menuResults').classList.remove('hidden');
         }
 
         function commitDriftCombo(doubleAtFinish = false) {
             if (car.driftCombo <= 0) return 0;
-
             let multiplier = car.driftMultiplier || 1;
             if (doubleAtFinish) multiplier *= 2;
-
             const added = Math.floor(car.driftCombo * multiplier);
             car.driftScore += added;
             car.driftCombo = 0;
@@ -1593,13 +1928,6 @@ if (car.speed < speedLimit) {
             document.getElementById('mainGears').innerText = gameState.gears;
             document.getElementById('garageCoins').innerText = gameState.coins;
             document.getElementById('garageGears').innerText = gameState.gears;
-        }
-
-        function getAgeDifficulty(age = Number(gameState.playerProfile?.age || 18)) {
-            if (age < 10) return { name: 'Fácil', timeBonus: 25, gripAssist: 0.12, sensitivity: 85 };
-            if (age < 14) return { name: 'Normal', timeBonus: 15, gripAssist: 0.07, sensitivity: 95 };
-            if (age < 18) return { name: 'Avançado', timeBonus: 5, gripAssist: 0.03, sensitivity: 100 };
-            return { name: 'Pro', timeBonus: 0, gripAssist: 0, sensitivity: 110 };
         }
 
         function makeProfileId() {
@@ -1623,7 +1951,6 @@ if (car.speed < speedLimit) {
         async function saveOnlinePlayerRecord() {
             const p = gameState.playerProfile;
             if (!p) return;
-
             const record = {
                 id: p.id,
                 nome: p.name,
@@ -1633,8 +1960,6 @@ if (car.speed < speedLimit) {
                 melhorFantasma: p.bestGhostTime == null ? null : Number(p.bestGhostTime.toFixed(1)),
                 atualizadoEm: new Date().toISOString()
             };
-
-            // Always keep a local copy, even when db() is unavailable.
             gameState.localPlayerRecords[p.id] = record;
             await dbCall('set', 'jogadores', p.id, record);
         }
@@ -1642,7 +1967,6 @@ if (car.speed < speedLimit) {
         async function loadOnlinePlayers() {
             const result = await dbCall('list', 'jogadores');
             if (result && Array.isArray(result.data)) return result.data;
-
             return Object.values(gameState.localPlayerRecords || {});
         }
 
@@ -1650,35 +1974,26 @@ if (car.speed < speedLimit) {
             const tbody = document.getElementById('playersTableBody');
             const status = document.getElementById('playersDbStatus');
             const p = gameState.playerProfile;
-
             document.getElementById('currentPlayerSummary').innerText = p
                 ? `Você: ${p.name} • ${p.age} anos • dificuldade ${getAgeDifficulty(p.age).name}`
                 : 'Nenhum perfil configurado.';
-
             tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-slate-500">Carregando...</td></tr>';
 
             const players = await loadOnlinePlayers();
             const merged = new Map();
-
             players.forEach(item => {
                 if (!item) return;
                 const id = item.id || item.chave || item.key || item.nome;
                 if (id) merged.set(id, item);
             });
-
             Object.values(gameState.localPlayerRecords || {}).forEach(item => {
                 if (item?.id) merged.set(item.id, item);
             });
 
             const rows = Array.from(merged.values()).map(item => {
                 const value = item && typeof item.value === 'object' ? item.value : item;
-                return {
-                    ...(value || {}),
-                    id: value?.id || item?.id || item?.key || item?.chave
-                };
-            }).sort((a, b) =>
-                String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR')
-            );
+                return { ...(value || {}), id: value?.id || item?.id || item?.key || item?.chave };
+            }).sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'));
 
             tbody.innerHTML = rows.length ? rows.map(item => `
                 <tr class="border-b border-slate-900">
@@ -1716,7 +2031,7 @@ if (car.speed < speedLimit) {
                 return;
             }
             const d = getAgeDifficulty(age);
-            box.innerText = `Dificuldade sugerida: ${d.name} • assistência de direção e tempo adaptados.`;
+            box.innerText = `Dificuldade sugerida: ${d.name} • assistência e IA adaptadas.`;
         }
 
         document.getElementById('profileAge').addEventListener('input', updateProfileDifficultyPreview);
@@ -1724,7 +2039,6 @@ if (car.speed < speedLimit) {
         document.getElementById('btnSaveProfile').addEventListener('click', async () => {
             const name = document.getElementById('profileName').value.trim();
             const age = Number(document.getElementById('profileAge').value);
-
             if (!name) return alert('Digite seu nome.');
             if (!Number.isInteger(age) || age < 5 || age > 100) return alert('Digite uma idade entre 5 e 100.');
 
@@ -1736,11 +2050,8 @@ if (car.speed < speedLimit) {
                 bestDriftScore: old.bestDriftScore || 0,
                 bestGhostTime: old.bestGhostTime ?? null
             };
-
-            gameState.settings.sensitivity = getAgeDifficulty(age).sensitivity;
             saveGameData();
             await saveOnlinePlayerRecord();
-
             hideAllMenuPanels();
             document.getElementById('menuMain').classList.remove('hidden');
             updateMenuCoins();
@@ -1749,7 +2060,7 @@ if (car.speed < speedLimit) {
         document.getElementById('btnNavPlay').addEventListener('click', () => {
             audio.playClick();
             hideAllMenuPanels();
-            renderTrackGrid();
+            setMode(currentMode || 'time');
             document.getElementById('menuPlay').classList.remove('hidden');
         });
 
@@ -1772,6 +2083,9 @@ if (car.speed < speedLimit) {
         document.getElementById('btnNavSettings').addEventListener('click', () => {
             audio.playClick();
             hideAllMenuPanels();
+            document.getElementById('sliderSfx').value = gameState.settings.sfxVol;
+            document.getElementById('sfxVolLabel').innerText = `${gameState.settings.sfxVol}%`;
+            document.getElementById('chkCameraRotate').checked = !!gameState.settings.cameraRotate;
             document.getElementById('menuSettings').classList.remove('hidden');
         });
 
@@ -1786,60 +2100,101 @@ if (car.speed < speedLimit) {
             document.getElementById('menuMain').classList.remove('hidden');
         }
 
-        // Mode Switching
-        document.getElementById('modeDrift').addEventListener('click', () => {
-            audio.playClick();
-            currentMode = 'drift';
-            document.getElementById('modeDrift').className = 'p-4 rounded-xl glass-panel border-2 border-cyan-500 bg-cyan-950/30 flex flex-col items-center transition';
-            document.getElementById('modeTime').className = 'p-4 rounded-xl glass-panel border-2 border-slate-700 hover:border-slate-500 flex flex-col items-center transition opacity-60';
-        });
+        const modeIdle = 'p-4 rounded-xl glass-panel border-2 border-slate-700 hover:border-slate-500 flex flex-col items-center transition opacity-60';
+        function setMode(mode) {
+            currentMode = mode;
+            modeChosen = true;
+            document.getElementById('modeTime').className = mode === 'time'
+                ? 'p-4 rounded-xl glass-panel border-2 border-pink-500 bg-pink-950/30 flex flex-col items-center transition'
+                : modeIdle;
+            document.getElementById('modeDrift').className = mode === 'drift'
+                ? 'p-4 rounded-xl glass-panel border-2 border-cyan-500 bg-cyan-950/30 flex flex-col items-center transition'
+                : modeIdle;
+            document.getElementById('modeDuel').className = mode === 'duel'
+                ? 'p-4 rounded-xl glass-panel border-2 border-amber-500 bg-amber-950/30 flex flex-col items-center transition'
+                : modeIdle;
+            document.getElementById('trackSelectPanel').classList.remove('hidden');
+            document.getElementById('duelCcHint').innerText = `IA adaptativa em ${gameState.duelCc}cc (você ${PLAYER_CC}cc)`;
+            renderTrackGrid();
+        }
+        document.getElementById('modeTime').addEventListener('click', () => { audio.playClick(); setMode('time'); });
+        document.getElementById('modeDrift').addEventListener('click', () => { audio.playClick(); setMode('drift'); });
+        document.getElementById('modeDuel').addEventListener('click', () => { audio.playClick(); setMode('duel'); });
 
-        document.getElementById('modeTime').addEventListener('click', () => {
-            audio.playClick();
-            currentMode = 'time';
-            document.getElementById('modeTime').className = 'p-4 rounded-xl glass-panel border-2 border-pink-500 bg-pink-950/30 flex flex-col items-center transition';
-            document.getElementById('modeDrift').className = 'p-4 rounded-xl glass-panel border-2 border-slate-700 hover:border-slate-500 flex flex-col items-center transition opacity-60';
-            document.getElementById('modeGhost').className = 'p-4 rounded-xl glass-panel border-2 border-slate-700 hover:border-slate-500 flex flex-col items-center transition opacity-60';
-        });
+        function drawTrackPreview(cnv, track) {
+            if (!cnv) return;
+            const pctx = cnv.getContext('2d');
+            const w = cnv.width;
+            const h = cnv.height;
+            pctx.clearRect(0, 0, w, h);
+            pctx.fillStyle = track.bg || '#0f172a';
+            pctx.fillRect(0, 0, w, h);
+            const pts = track.points;
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            pts.forEach(([x, y]) => {
+                minX = Math.min(minX, x); minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+            });
+            const pad = 10;
+            const sx = (w - pad * 2) / Math.max(1, maxX - minX);
+            const sy = (h - pad * 2) / Math.max(1, maxY - minY);
+            const s = Math.min(sx, sy);
+            const ox = (w - (maxX - minX) * s) / 2;
+            const oy = (h - (maxY - minY) * s) / 2;
+            pctx.beginPath();
+            pts.forEach(([x, y], i) => {
+                const px = ox + (x - minX) * s;
+                const py = oy + (y - minY) * s;
+                if (i === 0) pctx.moveTo(px, py); else pctx.lineTo(px, py);
+            });
+            pctx.closePath();
+            pctx.strokeStyle = track.border || '#06b6d4';
+            pctx.lineWidth = 6;
+            pctx.lineJoin = 'round';
+            pctx.stroke();
+            pctx.strokeStyle = track.asphalt || '#334155';
+            pctx.lineWidth = 3;
+            pctx.stroke();
+            const sx0 = ox + (pts[0][0] - minX) * s;
+            const sy0 = oy + (pts[0][1] - minY) * s;
+            pctx.fillStyle = '#eab308';
+            pctx.beginPath();
+            pctx.arc(sx0, sy0, 3.2, 0, Math.PI * 2);
+            pctx.fill();
+        }
 
-        document.getElementById('modeGhost').addEventListener('click', () => {
-            audio.playClick();
-            currentMode = 'ghost';
-            document.getElementById('modeGhost').className = 'p-4 rounded-xl glass-panel border-2 border-purple-500 bg-purple-950/30 flex flex-col items-center transition';
-            document.getElementById('modeDrift').className = 'p-4 rounded-xl glass-panel border-2 border-slate-700 hover:border-slate-500 flex flex-col items-center transition opacity-60';
-            document.getElementById('modeTime').className = 'p-4 rounded-xl glass-panel border-2 border-slate-700 hover:border-slate-500 flex flex-col items-center transition opacity-60';
-        });
-
-        // Track Render
         function renderTrackGrid(filter = 'all') {
             const grid = document.getElementById('trackGrid');
             grid.innerHTML = '';
+            ['trackFilterAll','trackFilterNormal','trackFilterOffroad','trackFilterMixed'].forEach(id => {
+                const el = document.getElementById(id);
+                el.className = 'py-1 px-3 text-xs font-orbitron rounded-lg bg-slate-800 text-slate-400 border border-slate-700';
+            });
+            const active = filter === 'all' ? 'trackFilterAll' : filter === 'normal' ? 'trackFilterNormal' : filter === 'offroad' ? 'trackFilterOffroad' : 'trackFilterMixed';
+            document.getElementById(active).className = 'py-1 px-3 text-xs font-orbitron rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500';
 
             TRACK_DATABASE.forEach(track => {
                 if (filter !== 'all' && track.type !== filter) return;
-
                 const isSelected = currentTrack.id === track.id;
                 const card = document.createElement('div');
                 card.className = `p-3 rounded-xl glass-panel border-2 cursor-pointer transition flex flex-col justify-between ${isSelected ? 'border-cyan-400 bg-cyan-950/20' : 'border-slate-800 hover:border-slate-600'}`;
-                
                 let typeBadge = '<span class="text-[10px] font-orbitron px-2 py-0.5 rounded bg-cyan-950 text-cyan-400">Asfalto</span>';
                 if (track.type === 'offroad') typeBadge = '<span class="text-[10px] font-orbitron px-2 py-0.5 rounded bg-amber-950 text-amber-400">Off-Road</span>';
                 if (track.type === 'mixed') typeBadge = '<span class="text-[10px] font-orbitron px-2 py-0.5 rounded bg-purple-950 text-purple-400">Misto</span>';
-
                 card.innerHTML = `
-                    <div class="flex justify-between items-start mb-2">
-                        <span class="font-orbitron font-bold text-sm text-slate-200">${track.name}</span>
+                    <canvas class="trackPreview w-full h-16 rounded-lg bg-slate-950 mb-2 border border-slate-800" width="180" height="72"></canvas>
+                    <div class="flex justify-between items-start mb-1 gap-2">
+                        <span class="font-orbitron font-bold text-xs sm:text-sm text-slate-200">${track.name}</span>
                         ${typeBadge}
                     </div>
-                    <div class="text-xs text-slate-400 font-orbitron">${track.laps} Voltas • Pista Curta/Larga</div>
+                    <div class="text-[10px] text-slate-400 font-orbitron">${track.laps} Voltas • Circuito amplo</div>
                 `;
-
+                drawTrackPreview(card.querySelector('canvas'), track);
                 card.addEventListener('click', () => {
                     audio.playClick();
                     currentTrack = track;
                     renderTrackGrid(filter);
                 });
-
                 grid.appendChild(card);
             });
         }
@@ -1847,6 +2202,7 @@ if (car.speed < speedLimit) {
         document.getElementById('trackFilterAll').addEventListener('click', () => renderTrackGrid('all'));
         document.getElementById('trackFilterNormal').addEventListener('click', () => renderTrackGrid('normal'));
         document.getElementById('trackFilterOffroad').addEventListener('click', () => renderTrackGrid('offroad'));
+        document.getElementById('trackFilterMixed').addEventListener('click', () => renderTrackGrid('mixed'));
 
         document.getElementById('btnStartRace').addEventListener('click', () => {
             audio.init();
@@ -1854,37 +2210,56 @@ if (car.speed < speedLimit) {
             initRace();
         });
 
-        // Garage & Shop Tabs
-        document.getElementById('tabCars').addEventListener('click', () => {
-            audio.playClick();
-            document.getElementById('tabCars').className = 'pb-2 font-orbitron font-bold text-cyan-400 border-b-2 border-cyan-400';
-            document.getElementById('tabShop').className = 'pb-2 font-orbitron font-bold text-slate-500 hover:text-slate-300';
-            document.getElementById('panelCars').classList.remove('hidden');
-            document.getElementById('panelParts').classList.add('hidden');
-            document.getElementById('panelShop').classList.add('hidden');
+        function setGarageTab(tab) {
+            const tabs = {
+                cars: ['tabCars', 'panelCars'],
+                tune: ['tabTune', 'panelTune'],
+                parts: ['tabParts', 'panelParts'],
+                shop: ['tabShop', 'panelShop']
+            };
+            Object.entries(tabs).forEach(([key, [tabId, panelId]]) => {
+                const on = key === tab;
+                document.getElementById(tabId).className = on
+                    ? 'pb-2 font-orbitron font-bold text-cyan-400 border-b-2 border-cyan-400 whitespace-nowrap'
+                    : 'pb-2 font-orbitron font-bold text-slate-500 hover:text-slate-300 whitespace-nowrap';
+                document.getElementById(panelId).classList.toggle('hidden', !on);
+            });
+            if (tab === 'parts') renderPartsList();
+            if (tab === 'tune') syncTuneUI();
+        }
+
+        document.getElementById('tabCars').addEventListener('click', () => { audio.playClick(); setGarageTab('cars'); });
+        document.getElementById('tabTune').addEventListener('click', () => { audio.playClick(); setGarageTab('tune'); });
+        document.getElementById('tabParts').addEventListener('click', () => { audio.playClick(); setGarageTab('parts'); });
+        document.getElementById('tabShop').addEventListener('click', () => { audio.playClick(); setGarageTab('shop'); });
+
+        function syncTuneUI() {
+            document.getElementById('sliderSteerTune').value = gameState.tuning.steering;
+            document.getElementById('steerTuneLabel').innerText = `${gameState.tuning.steering}%`;
+            const idle = 'p-3 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 font-orbitron text-xs';
+            const on = 'p-3 rounded-xl border border-cyan-500 bg-cyan-950/40 text-cyan-200 font-orbitron text-xs';
+            document.getElementById('gearSlow').className = gameState.tuning.gears === 'slow' ? on : idle;
+            document.getElementById('gearMedium').className = gameState.tuning.gears === 'medium' ? on : idle;
+            document.getElementById('gearFast').className = gameState.tuning.gears === 'fast' ? on : idle;
+            document.getElementById('gearTuneHint').innerText = (GEAR_TUNING[gameState.tuning.gears] || GEAR_TUNING.medium).hint;
+        }
+
+        document.getElementById('sliderSteerTune').addEventListener('input', (e) => {
+            gameState.tuning.steering = parseInt(e.target.value, 10);
+            document.getElementById('steerTuneLabel').innerText = `${gameState.tuning.steering}%`;
+            saveGameData();
         });
 
-        document.getElementById('tabParts').addEventListener('click', () => {
+        function setGearTune(key) {
+            gameState.tuning.gears = key;
+            saveGameData();
+            syncTuneUI();
             audio.playClick();
-            document.getElementById('tabParts').className = 'pb-2 font-orbitron font-bold text-cyan-400 border-b-2 border-cyan-400';
-            document.getElementById('tabCars').className = 'pb-2 font-orbitron font-bold text-slate-500 hover:text-slate-300';
-            document.getElementById('tabShop').className = 'pb-2 font-orbitron font-bold text-slate-500 hover:text-slate-300';
-            document.getElementById('panelParts').classList.remove('hidden');
-            document.getElementById('panelCars').classList.add('hidden');
-            document.getElementById('panelShop').classList.add('hidden');
-            renderPartsList();
-        });
+        }
+        document.getElementById('gearSlow').addEventListener('click', () => setGearTune('slow'));
+        document.getElementById('gearMedium').addEventListener('click', () => setGearTune('medium'));
+        document.getElementById('gearFast').addEventListener('click', () => setGearTune('fast'));
 
-        document.getElementById('tabShop').addEventListener('click', () => {
-            audio.playClick();
-            document.getElementById('tabShop').className = 'pb-2 font-orbitron font-bold text-cyan-400 border-b-2 border-cyan-400';
-            document.getElementById('tabCars').className = 'pb-2 font-orbitron font-bold text-slate-500 hover:text-slate-300';
-            document.getElementById('panelShop').classList.remove('hidden');
-            document.getElementById('panelCars').classList.add('hidden');
-            document.getElementById('panelParts').classList.add('hidden');
-        });
-
-        // Buy Gears
         function buyGears(cost, amount) {
             if (gameState.coins >= cost) {
                 gameState.coins -= cost;
@@ -1896,7 +2271,6 @@ if (car.speed < speedLimit) {
                 alert('Moedas insuficientes!');
             }
         }
-
         document.getElementById('btnBuyGears1').addEventListener('click', () => buyGears(500, 5));
         document.getElementById('btnBuyGears2').addEventListener('click', () => buyGears(1200, 15));
         document.getElementById('btnBuyGears3').addEventListener('click', () => buyGears(3000, 40));
@@ -1912,7 +2286,6 @@ if (car.speed < speedLimit) {
             const w = canvasPreview.width;
             const h = canvasPreview.height;
             pctx.clearRect(0, 0, w, h);
-
             const bg = pctx.createLinearGradient(0, 0, w, h);
             bg.addColorStop(0, '#020617');
             bg.addColorStop(1, '#0f172a');
@@ -1940,17 +2313,14 @@ if (car.speed < speedLimit) {
 
             pctx.fillStyle = 'rgba(0,0,0,.45)';
             pctx.fillRect(-86, -6, 172, 58);
-
             pctx.fillStyle = color;
             pctx.beginPath();
             pctx.roundRect(-85, -38, 170, 76, 14);
             pctx.fill();
-
             pctx.fillStyle = '#0f172a';
             pctx.beginPath();
             pctx.roundRect(-15, -30, 56, 60, 10);
             pctx.fill();
-
             pctx.fillStyle = '#67e8f9';
             pctx.fillRect(72, -26, 8, 15);
             pctx.fillRect(72, 11, 8, 15);
@@ -1971,15 +2341,12 @@ if (car.speed < speedLimit) {
             pctx.fillRect(28, -46, 30, 10);
             pctx.fillRect(-58, 36, 30, 10);
             pctx.fillRect(28, 36, 30, 10);
-
             pctx.fillStyle = smoke;
             pctx.globalAlpha = 0.35;
             pctx.beginPath(); pctx.arc(-92, -22, 13, 0, Math.PI * 2); pctx.fill();
             pctx.beginPath(); pctx.arc(-108, 20, 9, 0, Math.PI * 2); pctx.fill();
             pctx.globalAlpha = 1;
-
             pctx.restore();
-
             pctx.fillStyle = '#94a3b8';
             pctx.font = '14px Orbitron, sans-serif';
             pctx.textAlign = 'center';
@@ -1990,7 +2357,6 @@ if (car.speed < speedLimit) {
             const grid = document.getElementById('partListGrid');
             if (!grid) return;
             grid.innerHTML = '';
-
             PARTS_DATABASE.forEach(part => {
                 const unlocked = gameState.unlockedParts.includes(part.id);
                 const equipped = !!gameState.equippedParts[part.id];
@@ -2019,14 +2385,12 @@ if (car.speed < speedLimit) {
                 });
                 grid.appendChild(card);
             });
-
             renderCarPreview();
         }
 
         document.getElementById('btnBuyEquipPart').addEventListener('click', () => {
             const part = selectedPartInGarage;
             if (!part) return;
-
             const unlocked = gameState.unlockedParts.includes(part.id);
             if (!unlocked) {
                 if (gameState.coins < part.price) {
@@ -2036,7 +2400,6 @@ if (car.speed < speedLimit) {
                 gameState.coins -= part.price;
                 gameState.unlockedParts.push(part.id);
             }
-
             gameState.equippedParts[part.id] = true;
             saveGameData();
             audio.playCoinSound();
@@ -2045,22 +2408,18 @@ if (car.speed < speedLimit) {
             updateGarageDetails();
         });
 
-        // Garage Upgrades Logic
         let selectedCarInGarage = CAR_DATABASE[0];
 
         function renderGarageList() {
             updateMenuCoins();
             const grid = document.getElementById('carListGrid');
             grid.innerHTML = '';
-
             CAR_DATABASE.forEach(carItem => {
                 const isUnlocked = gameState.unlockedCars.includes(carItem.id);
                 const isSelected = selectedCarInGarage.id === carItem.id;
                 const isEquipped = gameState.equippedCar === carItem.id;
-
                 const card = document.createElement('div');
                 card.className = `p-3 rounded-xl glass-panel border-2 cursor-pointer transition flex flex-col justify-between ${isSelected ? 'border-pink-500 bg-pink-950/20' : 'border-slate-800 hover:border-slate-700'}`;
-
                 card.innerHTML = `
                     <div>
                         <div class="flex justify-between items-center mb-1">
@@ -2070,12 +2429,11 @@ if (car.speed < speedLimit) {
                         <div class="w-full h-2 rounded my-2" style="background-color: ${carItem.color}"></div>
                     </div>
                     <div class="text-right">
-                        ${isUnlocked 
-                            ? '<span class="text-xs text-slate-400 font-orbitron">Adquirido</span>' 
+                        ${isUnlocked
+                            ? '<span class="text-xs text-slate-400 font-orbitron">Adquirido</span>'
                             : `<span class="text-xs text-yellow-400 font-orbitron font-bold"><i class="fa-solid fa-coins"></i> ${carItem.price}</span>`}
                     </div>
                 `;
-
                 card.addEventListener('click', () => {
                     audio.playClick();
                     selectedCarInGarage = carItem;
@@ -2084,10 +2442,8 @@ if (car.speed < speedLimit) {
                     updateGarageDetails();
                     renderCarPreview();
                 });
-
                 grid.appendChild(card);
             });
-
             updateGarageDetails();
             renderCarPreview();
         }
@@ -2100,40 +2456,28 @@ if (car.speed < speedLimit) {
             const upgradeData = gameState.carUpgrades[selectedCarInGarage.id] || { focus: null, level: 0 };
 
             document.getElementById('selectedCarName').innerText = selectedCarInGarage.name;
-            selectedPartInGarage = selectedPartInGarage || null;
             document.getElementById('selectedCarStatus').innerText = isUnlocked ? (isEquipped ? 'EM USO' : 'ADQUIRIDO') : 'BLOQUEADO';
-
-            // Focus attribute text
             const focusMap = { accel: 'Aceleração', speed: 'Velocidade', drift: 'Drift' };
             document.getElementById('carUpgradeFocus').innerText = upgradeData.focus ? focusMap[upgradeData.focus] : 'Nenhum';
-
-            // Stats
             document.getElementById('statAccelVal').innerText = `${Math.floor(stats.accel * 180)}%`;
             document.getElementById('statAccelBar').style.width = `${Math.min(100, Math.floor(stats.accel * 180))}%`;
-
             document.getElementById('statSpeedVal').innerText = `${Math.floor(stats.maxSpeed * 15)} KM/H`;
             document.getElementById('statSpeedBar').style.width = `${Math.min(100, Math.floor(stats.maxSpeed * 6.5))}%`;
-
             document.getElementById('statDriftVal').innerText = `${Math.floor(stats.driftFactor * 100)}%`;
             document.getElementById('statDriftBar').style.width = `${Math.floor(stats.driftFactor * 100)}%`;
-
-            // Upgrade level display
             document.getElementById('upgradeLevelText').innerText = `Nível: ${upgradeData.level}/3`;
+            document.getElementById('upgradeGearCost').innerText = String((upgradeData.level + 1) * 5);
 
-            // Style Attribute Focus Buttons
             ['btnChooseAccel', 'btnChooseSpeed', 'btnChooseDrift'].forEach(b => {
                 document.getElementById(b).className = 'py-1.5 text-xs font-orbitron rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-cyan-400';
             });
-
             if (upgradeData.focus === 'accel') document.getElementById('btnChooseAccel').className = 'py-1.5 text-xs font-orbitron rounded bg-cyan-500 text-slate-950 font-bold';
             if (upgradeData.focus === 'speed') document.getElementById('btnChooseSpeed').className = 'py-1.5 text-xs font-orbitron rounded bg-cyan-500 text-slate-950 font-bold';
             if (upgradeData.focus === 'drift') document.getElementById('btnChooseDrift').className = 'py-1.5 text-xs font-orbitron rounded bg-cyan-500 text-slate-950 font-bold';
 
-            // Customization Inputs
             document.getElementById('customBodyColor').value = custom.color || selectedCarInGarage.color;
             document.getElementById('customSmokeColor').value = custom.smokeColor || selectedCarInGarage.smokeColor;
 
-            // Buy or Equip
             const btn = document.getElementById('btnBuyEquip');
             if (!isUnlocked) {
                 btn.innerText = `COMPRAR ( $ ${selectedCarInGarage.price} )`;
@@ -2147,7 +2491,6 @@ if (car.speed < speedLimit) {
             }
         }
 
-        // Choosing Upgrade Attribute Focus
         function selectUpgradeFocus(focusKey) {
             const up = gameState.carUpgrades[selectedCarInGarage.id] || { focus: null, level: 0 };
             if (up.level > 0 && up.focus !== focusKey) {
@@ -2163,25 +2506,21 @@ if (car.speed < speedLimit) {
         document.getElementById('btnChooseSpeed').addEventListener('click', () => selectUpgradeFocus('speed'));
         document.getElementById('btnChooseDrift').addEventListener('click', () => selectUpgradeFocus('drift'));
 
-        // Applying Upgrade using Gears
         document.getElementById('btnApplyUpgrade').addEventListener('click', () => {
             const isUnlocked = gameState.unlockedCars.includes(selectedCarInGarage.id);
             if (!isUnlocked) {
                 alert('Adquira o carro primeiro antes de melhorá-lo!');
                 return;
             }
-
             const up = gameState.carUpgrades[selectedCarInGarage.id] || { focus: null, level: 0 };
             if (!up.focus) {
                 alert('Selecione primeiro qual atributo você deseja melhorar neste carro!');
                 return;
             }
-
             if (up.level >= 3) {
                 alert('Este carro já atingiu o nível máximo de melhorias (3/3)!');
                 return;
             }
-
             const gearCost = (up.level + 1) * 5;
             if (gameState.gears >= gearCost) {
                 gameState.gears -= gearCost;
@@ -2196,7 +2535,6 @@ if (car.speed < speedLimit) {
             }
         });
 
-        // Colors
         document.getElementById('customBodyColor').addEventListener('input', (e) => {
             if (!gameState.carCustoms[selectedCarInGarage.id]) gameState.carCustoms[selectedCarInGarage.id] = {};
             gameState.carCustoms[selectedCarInGarage.id].color = e.target.value;
@@ -2209,7 +2547,6 @@ if (car.speed < speedLimit) {
             saveGameData();
         });
 
-        // Buy or Equip Car Action
         document.getElementById('btnBuyEquip').addEventListener('click', () => {
             const isUnlocked = gameState.unlockedCars.includes(selectedCarInGarage.id);
             if (!isUnlocked) {
@@ -2231,7 +2568,6 @@ if (car.speed < speedLimit) {
             }
         });
 
-        // Settings Listeners
         document.getElementById('sliderSfx').addEventListener('input', (e) => {
             gameState.settings.sfxVol = parseInt(e.target.value);
             document.getElementById('sfxVolLabel').innerText = `${gameState.settings.sfxVol}%`;
@@ -2239,9 +2575,8 @@ if (car.speed < speedLimit) {
             saveGameData();
         });
 
-        document.getElementById('sliderSens').addEventListener('input', (e) => {
-            gameState.settings.sensitivity = parseInt(e.target.value);
-            document.getElementById('sensLabel').innerText = `${gameState.settings.sensitivity}%`;
+        document.getElementById('chkCameraRotate').addEventListener('change', (e) => {
+            gameState.settings.cameraRotate = e.target.checked;
             saveGameData();
         });
 
@@ -2253,7 +2588,6 @@ if (car.speed < speedLimit) {
             }
         });
 
-        // Pause Controls
         document.getElementById('btnPause').addEventListener('click', () => {
             isPaused = true;
             audio.stopEngine();
@@ -2274,18 +2608,18 @@ if (car.speed < speedLimit) {
 
         document.getElementById('btnQuitToMenu').addEventListener('click', () => {
             isRunning = false;
+            isCountingDown = false;
             audio.stopEngine();
+            document.getElementById('countdownOverlay').classList.add('hidden');
             backToMain();
         });
 
         document.getElementById('btnResultContinue').addEventListener('click', backToMain);
 
-        // Controllers
         window.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
             if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
         });
-
         window.addEventListener('keyup', (e) => {
             if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
             if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
@@ -2293,15 +2627,12 @@ if (car.speed < speedLimit) {
 
         const touchLeft = document.getElementById('touchLeft');
         const touchRight = document.getElementById('touchRight');
-
         touchLeft.addEventListener('touchstart', (e) => { e.preventDefault(); touchLeftActive = true; });
         touchLeft.addEventListener('touchend', (e) => { e.preventDefault(); touchLeftActive = false; });
         touchRight.addEventListener('touchstart', (e) => { e.preventDefault(); touchRightActive = true; });
         touchRight.addEventListener('touchend', (e) => { e.preventDefault(); touchRightActive = false; });
         touchLeft.addEventListener('touchcancel', () => { touchLeftActive = false; });
         touchRight.addEventListener('touchcancel', () => { touchRightActive = false; });
-
-        // Pointer events make mobile controls more reliable on modern browsers.
         touchLeft.addEventListener('pointerdown', e => { e.preventDefault(); touchLeftActive = true; });
         touchLeft.addEventListener('pointerup', e => { e.preventDefault(); touchLeftActive = false; });
         touchLeft.addEventListener('pointercancel', () => touchLeftActive = false);
@@ -2316,13 +2647,11 @@ if (car.speed < speedLimit) {
             const carEl = document.getElementById('introCar');
             const tagline = document.getElementById('introTagline');
             const continueBtn = document.getElementById('btnIntroContinue');
-
             drift.classList.add('show');
             setTimeout(() => mania.classList.add('show'), 300);
             setTimeout(() => carEl.classList.add('drift'), 700);
             setTimeout(() => tagline.classList.add('show'), 1850);
             setTimeout(() => continueBtn.classList.add('show'), 2350);
-
             continueBtn.addEventListener('click', () => {
                 if (introFinished) return;
                 introFinished = true;
@@ -2332,36 +2661,20 @@ if (car.speed < speedLimit) {
                 overlay.style.opacity = '0';
                 setTimeout(() => {
                     overlay.classList.add('hidden');
-                    if (!gameState.playerProfile) {
-                        hideAllMenuPanels();
-                        document.getElementById('menuProfile').classList.remove('hidden');
-                    } else {
-                        hideAllMenuPanels();
-                        document.getElementById('menuMain').classList.remove('hidden');
-                    }
+                    hideAllMenuPanels();
+                    if (!gameState.playerProfile) document.getElementById('menuProfile').classList.remove('hidden');
+                    else document.getElementById('menuMain').classList.remove('hidden');
                 }, 450);
             }, { once: true });
         }
 
-        // INITIALIZE
         updateMenuCoins();
         renderTrackGrid();
         renderGarageList();
         renderPartsList();
-
-        if (!gameState.playerProfile) {
-            // First launch is handled after the DRIFT -> MANIA intro.
-        } else {
-            document.getElementById('menuMain').classList.remove('hidden');
-        }
-
+        syncTuneUI();
         startIntroFlow();
         requestAnimationFrame(loop);
     </script>
 </body>
 </html>
-
-Para finalizar o jogo e ajustar o código, outra opção é editar o código completo.
-Anúncio
-
-
