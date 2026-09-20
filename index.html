@@ -1,6 +1,3 @@
-
-
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -1161,14 +1158,17 @@
             const sensFactor = (gameState.settings.sensitivity / 100);
             const steerPower = 0.05 * sensFactor * currentCar.driftFactor;
 
-            // Automatic Acceleration
-            if (car.speed < currentCar.maxSpeed * accelMult) {
-                car.speed += currentCar.accel * accelMult;
-            } else {
-                car.speed *= 0.985;
-            }
+     let speedLimit = currentCar.maxSpeed * accelMult;
 
-            if(isLeft & isRight) car.speed *= 0.5;
+if (isLeft && isRight) {
+    speedLimit *= 0.5;
+}
+
+if (car.speed < speedLimit) {
+    car.speed += currentCar.accel * accelMult;
+} else {
+    car.speed *= 0.985;
+}
 
             // Apply Steering
             if (isLeft) car.angle -= steerPower;
