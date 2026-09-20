@@ -1,49 +1,5 @@
-Texto colado(20260919-143540).txt
-Documento
-para finalizar o jogo. Por favor não tira nada do que já tem.
 
 
-Texto colado(20260919-143654).txt
-Documento
-mandei o código da versão errada. Era nisso que queria que melhorasse: 
-
-Agora sim: trabalhei em cima da versão correta que você enviou. Ela já tinha corrida Drift/Tempo, 9 pistas, garagem, carros, upgrades, moedas/engrenagens e controles touch.
-
-Adicionei sem remover esses sistemas:
-
-    animação inicial DRIFT → MANIA com carro fazendo drift;
-
-    cadastro inicial de nome + idade, com dificuldade adaptada;
-
-    modo Fantasma, com gravação/reprodução do melhor tempo;
-
-    tela Jogadores, com melhor Drift e melhor Fantasma;
-
-    integração com db() para salvar jogadores online, mantendo fallback local;
-
-    mais carros;
-
-    sistema completo de peças, com bônus e visual;
-
-    preview da peça antes da compra;
-
-    peças equipadas aparecem no carro durante a corrida;
-
-    combo de drift fica acumulado;
-
-    após 3 segundos sem drift, o combo é adicionado ao total e o multiplicador reinicia;
-
-    multiplicador aumenta +0,2 a cada 1.000 pontos;
-
-    ao cruzar a linha de chegada com combo pendente, ele recebe o dobro antes de ser somado;
-
-    controles mobile mais confiáveis;
-
-    manutenção do salvamento antigo em localStorage;
-
-    correção de pequenos problemas do código original.
-
-Também validei o JavaScript com node --check: sem erro de sintaxe e sem referências a elementos HTML inexistentes.
 
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -1211,6 +1167,8 @@ Também validei o JavaScript com node --check: sem erro de sintaxe e sem referê
             } else {
                 car.speed *= 0.985;
             }
+
+            if(isLeft & isRight) car.speed *= 0.5;
 
             // Apply Steering
             if (isLeft) car.angle -= steerPower;
